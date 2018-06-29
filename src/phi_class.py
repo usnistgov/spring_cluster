@@ -30,7 +30,7 @@ from make_dist_array import make_dist_array
 from dipole_dipole_parallel import dipole_dipole
 from dynmat_anharm import dyn
 from prepare_sym import prepare_sym
-from atoms import Atoms
+from atoms_kfg import Atoms
 
 #masses of atoms
 dict_amu = {\
@@ -4806,7 +4806,8 @@ class lsq_constraint():
     M = (A)/np.tile(std,(A.shape[0],1))
 #    print 'MFER', M.shape, F.shape
     try:
-      lstsq_output2 = np.linalg.lstsq(M,F, rcond=None)
+#      lstsq_output2 = np.linalg.lstsq(M,F, rcond=None)
+      lstsq_output2 = np.linalg.lstsq(M,F)
     except:
       print 'Warning, did not converge lsqsq', A.shape
       return np.zeros(A.shape[1],dtype=float)
