@@ -42,9 +42,9 @@ which simply goes into the src/ directory and runs make
 
 To add the python directory to your path, please run:
 
-   cd src
-   PYTHONPATH=$PYTHONPATH:`pwd`:
-   export PYTHONPATH
+      cd src
+      PYTHONPATH=$PYTHONPATH:`pwd`:
+      export PYTHONPATH
 
 You may want to add the path to your .bashrc
 
