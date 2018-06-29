@@ -1,0 +1,481 @@
+
+Documentation of spring_cluster
+
+######################################################
+
+Initialization / General
+--------------
+
+spring_cluster(hs_file, supercell, outputfile)
+
+hs_file - string - filename of the high symmetry file. default=None
+supercell - list of 3 integers - supercell used for fitting. default =
+[1,1,1] outputfile - filename of the output file used to set the zero
+of energy of the hs_file
+
+
+------
+
+print_current_options()
+
+print the current options
+
+--------
+
+free_setup_memory()
+
+Will free a bunch of memory so the spring_cluster object is easier to pickle
+
+######################################################
+
+OPTIONS
+-------
+
+set_energy_differences(d=[]) 
+
+d = list of pairs of integers. The
+difference in energy between them will be added to the fitting
+
+example: d = [[0,1]] - requires the energy difference between the 0th
+and 1st file read in to be added to the fitting.
+
+Useful if there are two local minima with different structures that
+need to be fitted in the correct order
+
+--------
+
+set_energy_limit(energy=100000000.) 
+
+energy= float (Ryd)
+
+Set a limit on the energy of structures considered in the fitting.
+Useful if you have relaxations that start at very high energies and
+proceed to lower energies and you want to keep the relatively low energy part.
+
+--------
+
+weight_by_energy(t=True) 
+
+t= Bool
+
+Use energies to automatically set weights in fitting, weighing low energy
+structures higher (up to 50 to 1). Default is do not use, and instead use 
+the weights entered by user. (see load_filelist)
+
+--------
+
+set_exact_constraint(d=[])
+
+list of integers corresponding to file numbers of data points where
+we require that the energy to be exact. Useful in a doped system to
+require that the end member we do not expand around is also exact
+
+--------
+
+set_vacancy_mode(m=True)
+
+m=True turns on vacancies (default)
+m=False - turns off vacancies
+
+-------
+
+set_magnetic_mode(m=1)
+
+m=0 turn of magnetic fitting
+m=1 turn on magnetic fitting, run Ising model MC (default)
+m=2 turn on magnetic fitting, run Heisenberg model MC
+
+-------
+
+set_energy_weight(n=0.1)
+
+Sets the relative weight of the energy/stress vs. the forces in the
+fitting. Default=0.1. Increasing it will weight the energy
+higher. This can improve the energies, but if set too high it can 
+destroy out of sample performace and cause instabilities
+
+-------
+
+set_verbosity(v='low')
+
+if v='low', sets verbosity to low (default)
+other options
+v='med'
+v='high'
+
+High verbosity will output a LOT of stuff that may or may not be
+useful for debuging. It will also output a lot more timing
+information. The matricies UMAT, FMAT, and ASR have the information
+used in the least squares fitting. UMAT is the dependent variables, FMAT
+are the forces/stresses/energy, and ASR is the constraint matrix. UMAT
+can be very large if you have lots of data or features.
+
+--------
+
+set_regression(method='lsq', num_keep=0, choose_rfe='good-median')
+
+Sets how the code does regression. Options for method are:
+'lsq' - default, least squares (with constraints)
+'rfe' - recursive feature elimination
+     OPTIONS:  num_keep - integer, keep this many features (no CV)
+               choose_rfe - string - how to deterimine number of features from CV. can be 'good-median', 'good-mean', 'max-mean', 'max-median'
+               
+'lasso' - lasso
+     OPTIONS: alpha hyperparameter for lasso. 1e-9 ish tends to work
+
+--------
+
+######################################################
+
+SETUP MODEL / FIT MODEL
+-------
+
+load_hs_output(hs_file_out)
+
+string - filename of high symmetry output file. can also be loaded
+         during initialization. no default
+
+--------
+
+load_zeff(fc)
+
+string - filename of file with information on Born effective charges
+and dielectric constant, if included. No default.
+
+--------
+load_filelist(file_list)
+
+file_list is either a name of a file that contains a list of files to
+fit to, or a list strings that contains the same information.
+
+the file_list has a few options. First is just a list of file names
+
+si_diamond.1.out
+si_diamond.2.out
+si_diamond.3.out
+...
+
+
+The second is a list of file names and relative weights for the
+fitting.
+
+si_diamond.1.out 0.1
+si_diamond.2.out 0.1
+si_diamond.3.out 0.2
+...
+
+The third is the weight and the supercells, which is useful for larger
+supercell changes that the code cannot handle
+
+si_diamond.1.out 0.1 2 2 2
+si_diamond.2.out 0.1 2 2 2
+si_diamond.3.out 0.2 4 4 4
+...
+
+Non-orthogonal supercells are allowed, but only if they fit exactly
+into the fitting supercell if they are tiled.
+
+Orthogonal supercells of any size are allowed. They do not have to fit
+in the fitting supercell.
+
+--------
+
+setup_cutoff(dim, cutoff=0.01, body=100, dist_cutoff_twobody=0.0001, limit_xy=False)
+
+this is a key line that adds a type of term to them model.
+
+dim is a list of two integers [dim_s, dim_k] , where dim_s is the
+cluster dimension of that term, and dim_k is the atomic-displacement
+dimension - no default
+
+For example: [0,2] - harmonic spring constants
+             [2,0] - cluster only pair interaction
+             [1,1] - lowest order interaction term. related to forces from a single dopant/spin
+
+cutoff is the cutoff distance for this term. It can either be in Bohr
+(floating point positive number), or -1, -2, -3, or -4. The negative
+integers represent nearst neighbors. So -1 is the first n.n., etc. We
+only calculate up to 4th n.n. default = 0.01
+
+body = integer of allowed number of different atoms in each term. to
+limit to two-body interaction, body=2. default=very high
+
+dist_cutoff_twobody= same format as cutoff. default=small. This is an
+optional second cutoff for only two-body terms. Can be useful because
+two-body terms are almost always larger than three-body and higher
+terms, and there are also far less of them. For example:
+
+     setup_cutoff([0,3], cutoff=-3, body=3, dist_cutoff_twobody=-4)
+     Will allow 3 body terms up to the 3rd nn, but 2 body terms up to 4th n.n.
+
+limit_xy=False Limits atomic displacemnt terms to only either two
+directions. So for example
+
+u_x u_y u_y is allowed with limit_xy=True, but
+u_x u_y u_z is not. 
+
+Note - this option is not very useful in practice, but it speeds up the fitting
+of high dimensional terms, so it can be useful for testing purposes.
+
+--------
+
+do_all_fitting()
+
+Does all of the fitting. You must minimally run at least one
+setup_cutoff as well as load_filelist before this will work.
+
+
+--------
+
+do_apply_sym()
+
+Optional line that does symmetry analysis of model. do_all_fitting()
+(see above) will call it if it hasn't been run already, so you never
+need to run this yourself. However, it can be useful for testing
+models when the symmetry anlysis is taking lots of time. You can run
+it once, and then reload your spring_cluster object from a pickle
+after using free_setup_memory()
+
+
+######################################################
+
+USING MODEL - after fitting
+-------
+
+write_harmonic(filename)
+
+Output harmonic force constants in QE format
+
+
+--------
+
+write_cubic(filename)
+
+Output cubic force constants in ShengBTE format for thermal conductivity calculation
+
+
+--------
+
+calc_energy(A,pos,types, cell=[])
+
+Calculates the energy/forces/stress of a unit cell
+
+A - 3x3 numpy object - lattic vectors
+pos - natx3 numpy object - fractional coords of unit cell
+types - list - names of atoms for the cluster variables
+cell - size of supercell - optional. Code will try to guess it if not given
+
+returns
+energy, forces, stress
+
+(float, nat x 3, 3 x 3 numpy objects)
+
+--------
+
+calc_energy_qe_file(filename,cell=[])
+
+Calculates the energy/forces/stresses of a QE outpufile given by filename
+
+cell - size of supercell - optional. Code will try to guess it if not given
+
+returns
+energy, forces, stress
+
+(float, nat x 3, 3 x 3 numpy objects)
+
+--------
+
+calc_energy_qe_input(filename,cell=[])
+
+See above, but for QE input files
+
+
+--------
+
+calc_energy_qe_output_list(tocalc)
+
+Runs calc_energy_qe_file for a list of files tocalc
+
+Will compare energy/force/stress to QE outputfiles for model testing purposes
+
+returns ENERGIES,FORCES, STRESSES, ENERGIES_ref,FORCES_ref, STRESSES_ref 
+
+lists of all of those things for each structure in tocalc
+
+--------
+
+calc_energy_qe_input_list(filename):
+
+See above, but for a list of QE input files
+
+
+-------
+
+run_mc(self,A,pos,types, steps, temperature, chem_pot, step_size, use_all = [True, False, False],report_freq=10, cell=[], runaway_energy=-3.0, verbosity='minimal'):
+
+This runs the montecarlo (MC) sampling, and runs some basic analysis
+afterwards. 
+
+IT IS UP TO THE USER TO UNDERSTAND MC SAMPLING
+
+MC sampling is in three steps. First, the step sizes are
+adjusted. Second, there are steps of thermalization. Third, the
+production montecarlo is performed
+
+A contains the lattice vectors (3x3)
+pos is the crystal coordinates (natx3)
+types are a list of atom types (nat)
+
+temp is the temperature in Kelvin
+chem_pot is the chemical potential in Ryd. Also the magnetic field
+
+steps is a list of 3 integers [# steps changing step size, # steps
+thermalizing, # number steps collecting data] if you don't want to
+change step size automatically or thermalize, [0,0,nstep] is correct
+
+report_freq is how often to save data from the MC
+sampling. report_freq = 1 to save every step, however steps are often
+very correlated so you don't need them all 
+
+step_size = list with 2 floats: [initial_step_size_positions (Bohr),
+initial_step_size_strain (dimensionless)]. if nstep[0]=0, stepsize
+won't change otherwise it will be adjusted so that 50% of steps are
+accepted
+
+use_all is 3 bools; [change_positions, change_stain,
+change_cluster_variables]. If the are true, that variable is changed
+during sampling, otherwise not.
+
+cell is 3 integers in a list, the supercell of the input data. if it
+is not specified, it is inferred from data, which may not work for
+large distortions of unit cell 
+
+runaway_energy(Ryd): stop calculation if energy falls below this
+number. used to stop out of control calculations which are going to
+negative infinity energy
+
+returns
+
+energies, struct_all, strain_all, cluster_all, step_size, outstr
+
+energies are numpy vector of energies from production run
+struct_all is a number higher dimensional collection of crystal coords
+cluster_all has the cluster variables
+step_size has the final step size
+
+outstr - a string of either the final structure, or a selected structure if 
+the runaway condition of negative energies is reached. Useful for using 
+the output of MC to run a new DFT calculation. See also recursive_update()
+
+--------
+
+plot_comparison(self,A, B, filename='plt.pdf', show=False)
+
+Simple plotting tool for comparing model and DFT energies/forces
+Use with calc_energy_qe_output_list for model evaluation
+
+show=True will output to screen, otherwise output is only to filename
+
+--------
+
+Fvib_freq(self,qpoints, T)
+
+Harmonic vibrational free energy at temperature T in Kelvin
+qpoints is either an integer or a list of 3 ints [nq1, nq2, nq3] that define a qpoint grid
+
+
+--------
+
+dos(qpoints,  T=10, nsteps=400, filename='dos.csv', filename_plt='dos.pdf',show=False)
+
+Harmonic phonon density of states plotter. T is a smearing temperature
+qpoints is either an integer or a list [nq1, nq2, nq3] that define a qpoint grid
+nsteps is how many points to plot
+filename is the filename for the csv file, filename_plt is the plotting file
+show=True outputs to screen
+
+--------
+
+phonon_band_structure(qpoints, nsteps=20, filename='bandstruct.csv', filename_plt='bandstruct.pdf',show=False)
+
+plots the phonon band structure
+
+In this case qpoints is a list of qpoint lables and points. For example
+#like this: [['G',[0,0,0]], ['X', [0.5, 0, 0]]]
+
+Other options are like dos
+
+--------
+
+gruneisen_total(qpoints, T)
+
+The total Gruneisen paramter at temperature T (K)
+qpoints is either a an integer or list [nq1, nq2, nq3] of qpoints
+
+Not very well tested
+
+Requires harmonic and cubic f.c.'s
+
+
+--------
+
+gruneisen(qpoint)
+
+The Gruneisen paramter at a single qpoint in crystal units at temperature T (K)
+Not very well tested
+
+Requires harmonic and cubic f.c.'s
+
+returns gruneisen param and eigenvals at the qpoint
+--------
+
+elastic_constants()
+
+Ouputs the elastic constants and various related quantites
+ - Compliance tensor
+ - Piezoelectric tensor (Born effective charges, relaxed ion only)
+ - Dielectric constant (Born effective charges required)
+ - strain-atom interaction tensor
+ - Gamma-point force constant matrix
+  etc
+
+
+--------
+
+relax(A,pos,types,relax_unit_cell=True)
+
+Will attempt to use bfgs to relax a given cell using the model
+A - lattice vectors (numpy)
+pos - fractional coordinates  (numpy)
+types - list of atom names
+
+relax_unit_cell True or False
+
+returns energy_final, crys_final, A_final
+
+Not very well tested, (let me know if this fails even though model is good)
+
+--------
+
+recursive_update(DFT_function, file_list_train, steps, A_start, C_start, T_start,   temperature, dummy_input_file, directory='./', mc_steps=3000, update_type=[True, False, False], mc_cell = [])
+
+Tool for running an interative update/training of the model.  Code
+will generate new structures at given temperature using MC and add
+those to the fitting iteratively.
+
+#inputs:
+#DFT_function - the DFT function
+#file_list_train - list or filename of list of training files
+#steps - number of steps to iterate
+# A_start, C_start, T_start - starting info for MC
+# dummy_input_file - the QE input file with REPLACEME in place of the ATOMIC_POSITIONS and CELL_PARAMETERS data
+# directory - directory with the dummy input file
+# temperature - in K for MC
+# mc_steps - steps
+# update_type = [update_atom_pos, update_cell, update_clustervars]
+# mc_cell - cell of the montecarlo input. otherwise we guess it
+
+returns - final file list
+
+--------
+--------

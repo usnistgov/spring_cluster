@@ -1,0 +1,25 @@
+Program PWSCF fake
+number of atoms/cell = 4
+number of types = 1
+celldm(1)= 1.00
+a(1) = ( 7.489108884 0.0 0.0 ) 
+a(2) = ( 0.0 7.489108884 0.0 ) 
+a(3) = ( 0.0 0.0 10.0 ) 
+     site n.     atom                  positions (cryst. coord.)
+         1           Be  tau(   1) = (  0.0 0.0 0.0  )
+         1           Be  tau(   1) = (  0.0 0.5 0.0  )
+         1           Be  tau(   1) = (  0.5 0.0 0.0  )
+         1           Be  tau(   1) = (  0.5 0.5 0.0  )
+
+!    total energy              =     0.0 Ry
+     Forces acting on atoms (Ry/au):
+     atom    1 type  1   force =   0.0 0.0 0.0 
+     atom    1 type  1   force =   0.0 0.0 0.0 
+     atom    1 type  1   force =   0.0 0.0 0.0 
+     atom    1 type  1   force =   0.0 0.0 0.0 
+The non-local
+          total   stress  (Ry/bohr**3)                   (kbar)     P=  ???
+-1.49750326504e-16 0.0 0.0  0 0 0 
+0.0 -1.49750326504e-16 0.0  0 0 0 
+0.0 0.0 0.0  0 0 0 
+JOB DONE.
