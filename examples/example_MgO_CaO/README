@@ -1,0 +1,10 @@
+Fits a higher order model to the MgO-CaO system. The fitting data
+includes significantly larger distortions than in the Si-Ge system.
+
+As written, run_mgo_cao6.py allows distortions in atomic displacments
+up to 6th order, and may take an hour or two to fit. If you comment
+out the 5th and 6th order distortions, it will run faster, but the fit
+won't be quite as good.
+
+
+

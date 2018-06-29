@@ -1,0 +1,13 @@
+../example_Si/data/Si_diamond.scf.in.alat.5.154891093100001.out 1000
+../example_Si/data/Si_diamond.scf.in.super.222.x001.out
+../example_Si/data/Si_diamond.scf.in.super.222.x002.out
+../example_Si/data/Si_diamond.scf.in.super.222.xy001.out
+../example_Si/data/Si_diamond.scf.in.super.222.xyz001.out
+../example_Si/data/Si_diamond.scf.in.super.444.01.out
+../example_Si/data/Si_diamond.scf.in.super.444.02.out
+../example_Si/data/Si_diamond.scf.in.super.444.a.01.out
+../example_Si/data/Si_diamond.scf.in.super.444.a.02.out
+data/Si_diamond.scf.in.super.222.largdist.01.out 0.05
+data/Si_diamond.scf.in.super.222.largdist.02.out 0.05
+data/Si_diamond.scf.in.super.222.largdist.03.out 0.05
+data/Si_diamond.scf.in.super.222.largdist.04.out 0.05

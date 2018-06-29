@@ -1,0 +1,17 @@
+The files run_si_harmonic.py run_si_cubic.py  run_si_cubic_shorterrange.py 
+will run harmonic only, harmonic + cubic, and shorter range harmonic+cubic models, respectively.
+
+The harmonic model works very well on the small distortion training data (files_train_harm), 
+but struggles somewhat with larger distortion testing data (files_test).
+
+The harmonic + cubic model fits the data very well.
+
+The shorter range harmonic + cubic model fits pretty well, but has worse 
+energies/forces and worse elastic constants, because we are trying to ignore terms that are nonzero.
+Of course, it also has about half the parameters to fit, so it requires less data to fit and will run faster.
+
+The files also demonstrate some of the basic analysis tools, like phonon band structures, DOS, elastic constants, and 
+Gruneisen parameters.
+
+Expected output are in reference_files/ , and the DFT data is in data/
+

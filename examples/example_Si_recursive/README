@@ -1,0 +1,33 @@
+In order to run this example, you will have to modify the DFT function
+in run_si_quartic_recursive.py so that runstr will properly run a
+Quantum Espresso DFT calculation on your system.
+--
+
+
+This example first fits a model to Si in the diamond structure, and
+then uses that model to do Monte Carlo sampling to generate new
+structures at 500 K (limited to a 2x2x2 cell), improving itself
+iteratively by adding new DFT data.
+
+It predicts the energy/forces/stress of the new structure, and then
+incorporates the new DFT calculation into its fitting. Try grep-ing
+for 'Energy PREDICTION' and 'Energy POSTDICTION'. If the model is good
+and converged, there should not be a large difference between the two,
+and both should be accurate. If the model performance is poor due to
+lack of relevant data, the new data should improve the model. 
+
+On the other hand, if the model is bad because it is misspecified (the
+fitting terms cannot capture the forces/energy in the range of
+interest), then more data will not help, and improving the fit of new
+data will worsen the fit to previous data.
+
+This iterative process is very useful for situations where the model
+fits the initial fitting data, but then does poorly when used in Monte
+Carlo sampling at finite temperature. It can also deal with cases
+where the model is actually unstable at finite temperate and 'runs
+away' to negative infinity energy. The MC code will attempt to propose
+a structure related to the instabliity by rewinding to the last time
+the energy was reasonable, and that structure will be added to the
+fitting. Of course, if the inital model is terrible, this proposed
+structure might have very large distortions and giant forces, but
+the code does it best.

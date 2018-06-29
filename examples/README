@@ -1,0 +1,20 @@
+Examples list
+
+example_Si :           Harmonic and cubic fitting/testing of Si. Includes phonon band structure, DOS, elastic constants, etc
+
+example_SiGe :         Harmonic and cubic fitting of Si-Ge system. Also shows an example of a simple Monte Carlo run.
+
+example_Al_vacancy :   Harmonic and cubic fitting of Al + vacancy
+
+example_MgO_CaO :      Fit rocksalt oxide system. Introduces Born effective charges/dielectric constants and 
+		       much larger distortions and higher order interactions than in previous examples
+
+example_Ising_model :  A toy example that fits the Ising model from non-first principles data and runs Monte Carlo.
+                       Does not include any atomic displacments, only spin-spin terms.
+
+example_Si_recursive : Fits a higher order model for Si, and then attempts to improve it recursively by
+                       generating new structures with Monte Carlo sampling at 500K, doing new DFT 
+                       calculations, and incorporating the new data into an improved model all automatically
+
+example_tools  :       How to use the generation tools for quickly making QE inputfiles that are useful in fitting
+

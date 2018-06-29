@@ -1,0 +1,18 @@
+This fits the 2D square lattice FM Ising model to 'fake' model data
+and then runs Monte Carlo on the model. 
+
+H = -J Sum_ij s_i s_j
+
+It can also run MC on the Heisenberg model by allowing the spin
+directions to rotate in 3D with constant magnitude.
+
+H = -J Sum_ij svec_i dot svec_j
+
+
+To be clear, the MC code in this code is currently purely
+classical. This makes no difference to the Ising model because if
+there is no transverse field, everything commutes in the Ising model,
+but will change the results of the Heiseberg model.
+
+
+

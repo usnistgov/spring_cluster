@@ -1,0 +1,1894 @@
+loading
+
+Initializing springconstants with file
+File data/ising_fm.in [2, 2, 2]
+STARTING UP MODEL
+
+
+Initializing
+Loading structure from qe input and performing setup...
+Symmetry info
+Nsymm 16
+International 123
+Equiv 1
+[0]
+----------
+Cluster sites:
+[0]
+
+types_dict:
+{'Mn': 1, 'Fe': -1}
+
+Loaded types, set doping energy to 0.0
+Turning on magnetic
+
+Set cutoff [2, 0] 1.00001
+
+
+PRINTING CURRENT OPTIONS
+------------------------
+supercell [2, 2, 2]
+
+dims [[2, 0]]
+cutoffs
+[2, 0]	1.00001
+hs file data/ising_fm.in
+Have not done fitting yet.
+
+Using ASR
+
+Using normal least squares (keeping all features)
+
+Regularization parameter (RIDGE-L2) 1e-08
+
+Using any available terms in fitting
+
+Not using Born effective charges
+Using energy in fitting
+ weight is 0.1
+Using stress in fitting
+------------------------
+
+
+
+
+Starting Loading
+---------
+Loading data/ising_fm.in.super.221.out
+adding cell  [2, 2, 2]          [2, 2, 1]
+
+---
+ncalc loaded:1
+---------
+
+------------------------
+STARTING FITTING PROCESS
+
+ss_max [2, 2, 2] 8
+
+
+
+Independent groups of atoms (atom numbers, distance, nbody): [2, 0]
+[0, 2]	1.0	2
+
+
+Number of independent force constants for each group:
+nind for [2, 0]: [1]
+ntotal_ind for [2, 0]: 1
+
+done setup_lsq for [2, 0]
+
+
+Doing actual lsq fitting now
+
+
+START DO_LSQ
+------------
+found only trivial ASR, turing off
+
+UMAT out of total size 31, we keep 8, rest are duplicate entries
+using normal lstsq, no ASR
+sum_error rms : 0.0
+
+
+
+phi_ind_dim  [2, 0] 2000
+
+[1.99999997]
+
+
+
+Non-zero phi elements 4 out of a possible 8 assuming no cutoff radii, etc
+
+
+DONE FITTING
+------------------------
+
+IN SAMPLE TESTING
+
+
+---------------------------------
+STARTING ENERGY CALCULATIONS FROM: files_train
+
+---------------------------------
+0 Calculating energy for ['data/ising_fm.in.super.221.out']
+
+Energy 15.9999997616	16.0	-2.3841857732520566e-07	 	data/ising_fm.in.super.221.out 0
+F abs 0.0 0.0	 	data/ising_fm.in.super.221.out 0
+F max abs 0.0 0.0	 	data/ising_fm.in.super.221.out 0
+S abs 0.0 0.0	 	data/ising_fm.in.super.221.out 0
+
+Forces
+0.0   0.0   0.0
+0.0   0.0   0.0
+0.0   0.0   0.0
+0.0   0.0   0.0
+0.0   0.0   0.0
+0.0   0.0   0.0
+0.0   0.0   0.0
+0.0   0.0   0.0
+
+Stress
+[[0. 0. 0.]
+ [0. 0. 0.]
+ [0. 0. 0.]]
+
+
+N 1
+Energy average Deviation 2.3841857732520566e-07	16.0
+Forces average Deviation 0.0	0.0
+
+nat 1
+ncells 36
+coords
+[[0. 0. 0.]]
+START MONTE CARLO
+-----------------
+Temperature(K):         464198.677034
+Magnetic Field(Ryd):    0.0
+Steps:                  [0, 100, 10000]
+Initial Step size:      [0.01, 0.01]
+report_freq:            10
+Change pos:             False
+Change strain:          False
+Change cluster:         True
+
+RUNNING PARALLEL MC CODE (self.parallel==True)
+
+
+supercell detected[6 6 1] : 36
+CONSTRUCT TOTAL 4 REMAIN 4 CULLED 0 using permutation symmetry
+
+
+Starting Energy 0.0 time: 0.000134944915771
+
+starting u averaged 1 unit cell
+
+[[0. 0. 0.]]
+
+starting strain
+[[0. 0. 0.]
+ [0. 0. 0.]
+ [0. 0. 0.]]
+starting utypes
+[[1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]
+ [1.]]
+
+----------------
+
+DOING STEP SIZE DETERMINATION
+-----------------------------
+FINAL STEP SIZE [0.01, 0.01]
+en drift = 0.0
+
+STARTING THERMALIZATION
+-----------------------
+Thermalization energy step 0 43.9999993443
+Thermalization energy step 5 15.9999997616
+Thermalization energy step 10 31.9999995232
+Thermalization energy step 15 15.9999997616
+Thermalization energy step 20 23.9999996424
+Thermalization energy step 25 27.9999995828
+Thermalization energy step 30 35.9999994636
+Thermalization energy step 35 47.9999992847
+Thermalization energy step 40 47.9999992847
+Thermalization energy step 45 23.9999996424
+Thermalization energy step 50 1.42108547152e-14
+Thermalization energy step 55 35.9999994636
+Thermalization energy step 60 31.9999995232
+Thermalization energy step 65 15.9999997616
+Thermalization energy step 70 23.9999996424
+Thermalization energy step 75 31.9999995232
+Thermalization energy step 80 51.9999992251
+Thermalization energy step 85 27.9999995828
+Thermalization energy step 90 43.9999993443
+Thermalization energy step 95 39.999999404
+Thermalization TIME 0.0203318595886
+PRODUCTION MC
+10000 steps total reported every 10 so there are 1000 chunks.
+-----------------------------------------
+Energy at chunk 0 is 43.9999993443 average is 43.19999935626986
+en drift = -2.13162820728e-14
+Energy at chunk 1 is 43.9999993443 average is 45.9999993145466
+Energy at chunk 2 is 55.9999991655 average is 45.59999932050706
+Energy at chunk 3 is 43.9999993443 average is 46.399999308586125
+Energy at chunk 4 is 43.9999993443 average is 46.239999310970305
+Energy at chunk 5 is 51.9999992251 average is 47.19999929666519
+Energy at chunk 6 is 51.9999992251 average is 47.08571358408247
+Energy at chunk 7 is 27.9999995828 average is 44.099999342858794
+Energy at chunk 8 is 47.9999992847 average is 42.39999936819076
+Energy at chunk 9 is 55.9999991655 average is 42.079999372959136
+Energy at chunk 10 is 51.9999992251 average is 42.69090845476497
+Energy at chunk 11 is 19.999999702 average is 41.99999937415123
+Energy at chunk 12 is 31.9999995232 average is 40.67692247078969
+Energy at chunk 13 is 47.9999992847 average is 39.771427978788104
+Energy at chunk 14 is 39.999999404 average is 40.42666606426239
+Energy at chunk 15 is 43.9999993443 average is 39.399999412894246
+Energy at chunk 16 is 27.9999995828 average is 39.341175884359025
+Energy at chunk 17 is 59.9999991059 average is 39.11111052831014
+Energy at chunk 18 is 39.999999404 average is 39.78947309130117
+Energy at chunk 19 is 31.9999995232 average is 39.279999414682386
+Energy at chunk 20 is 51.9999992251 average is 39.466666078567506
+Energy at chunk 21 is 23.9999996424 average is 39.52727213827046
+Energy at chunk 22 is 27.9999995828 average is 39.06086898316508
+Energy at chunk 23 is 51.9999992251 average is 39.399999412894246
+Energy at chunk 24 is 51.9999992251 average is 39.74399940776825
+Energy at chunk 25 is 39.999999404 average is 39.72307633115695
+Energy at chunk 26 is 39.999999404 average is 39.34814756181505
+Energy at chunk 27 is 55.9999991655 average is 39.34285655660289
+Energy at chunk 28 is 39.999999404 average is 39.44827527424385
+Energy at chunk 29 is 35.9999994636 average is 39.33333274722099
+Energy at chunk 30 is 55.9999991655 average is 39.71612844044162
+Energy at chunk 31 is 51.9999992251 average is 40.049999403208496
+Energy at chunk 32 is 31.9999995232 average is 40.242423642765395
+Energy at chunk 33 is 27.9999995828 average is 39.83529352405492
+Energy at chunk 34 is 39.999999404 average is 39.51999941110611
+Energy at chunk 35 is 39.999999404 average is 39.68888829747836
+Energy at chunk 36 is 31.9999995232 average is 39.870269676156944
+Energy at chunk 37 is 7.99999988079 average is 39.34736783473115
+Energy at chunk 38 is 31.9999995232 average is 39.32307633711741
+Energy at chunk 39 is 27.9999995828 average is 39.47999941170215
+Energy at chunk 40 is 15.9999997616 average is 39.72682867631679
+Energy at chunk 41 is 39.999999404 average is 39.4666660785675
+Energy at chunk 42 is 39.999999404 average is 39.60930173535679
+Energy at chunk 43 is 31.9999995232 average is 39.38181759498335
+Energy at chunk 44 is 23.9999996424 average is 39.00444386323292
+Energy at chunk 45 is 51.9999992251 average is 38.817390725923616
+Energy at chunk 46 is 23.9999996424 average is 38.842552612690206
+Energy at chunk 47 is 51.9999992251 average is 38.94999941959976
+Energy at chunk 48 is 15.9999997616 average is 38.87346880849526
+Energy at chunk 49 is 31.9999995232 average is 38.7359994227886
+Energy at chunk 50 is 19.999999702 average is 38.66666609048842
+Energy at chunk 51 is 43.9999993443 average is 38.70769173090273
+Energy at chunk 52 is 51.9999992251 average is 38.71698055514748
+Energy at chunk 53 is 51.9999992251 average is 38.82962905102305
+Energy at chunk 54 is -4.97379915032e-14 average is 38.429090336452816
+Energy at chunk 55 is 55.9999991655 average is 38.571427996669485
+Energy at chunk 56 is 47.9999992847 average is 38.821052053100175
+Energy at chunk 57 is 19.999999702 average is 38.88275804129139
+Energy at chunk 58 is 43.9999993443 average is 38.77966043908716
+Energy at chunk 59 is 27.9999995828 average is 38.78666608870028
+Energy at chunk 60 is 35.9999994636 average is 38.8459010604952
+Energy at chunk 61 is 27.9999995828 average is 38.78709619622075
+Energy at chunk 62 is 51.9999992251 average is 38.95872957819982
+Energy at chunk 63 is 7.99999988079 average is 38.88749942053107
+Energy at chunk 64 is 27.9999995828 average is 38.633845578156965
+Energy at chunk 65 is 19.999999702 average is 38.24242367256769
+Energy at chunk 66 is 47.9999992847 average is 38.435820322784004
+Energy at chunk 67 is 51.9999992251 average is 38.52941119057289
+Energy at chunk 68 is 23.9999996424 average is 38.573912468682146
+Energy at chunk 69 is 39.999999404 average is 38.662856566735655
+Energy at chunk 70 is 47.9999992847 average is 38.80563322456788
+Energy at chunk 71 is 39.999999404 average is 38.89999942034481
+Energy at chunk 72 is 27.9999995828 average is 38.80547887380807
+Energy at chunk 73 is 35.9999994636 average is 38.85405347508351
+Energy at chunk 74 is 27.9999995828 average is 38.773332755565626
+Energy at chunk 75 is 35.9999994636 average is 38.831578368732785
+Energy at chunk 76 is 51.9999992251 average is 38.77402539624794
+Energy at chunk 77 is 47.9999992847 average is 38.758973781420615
+Energy at chunk 78 is 31.9999995232 average is 38.8151892950263
+Energy at chunk 79 is 35.9999994636 average is 38.789999421983936
+Energy at chunk 80 is 47.9999992847 average is 38.80493769336628
+Energy at chunk 81 is 59.9999991059 average is 38.86829210374412
+Energy at chunk 82 is 39.999999404 average is 38.87228857738424
+Energy at chunk 83 is 23.9999996424 average is 38.657142281106516
+Energy at chunk 84 is 27.9999995828 average is 38.67294060019884
+Energy at chunk 85 is 31.9999995232 average is 38.53023198399431
+Energy at chunk 86 is 51.9999992251 average is 38.35402241698624
+Energy at chunk 87 is 43.9999993443 average is 38.48181760839439
+Energy at chunk 88 is 43.9999993443 average is 38.4179769556174
+Energy at chunk 89 is 39.999999404 average is 38.417777205308255
+Energy at chunk 90 is 59.9999991059 average is 38.514285140378114
+Energy at chunk 91 is 11.9999998212 average is 38.530434208460456
+Energy at chunk 92 is 43.9999993443 average is 38.38279512697648
+Energy at chunk 93 is 43.9999993443 average is 38.434041980479606
+Energy at chunk 94 is 35.9999994636 average is 38.50947311037463
+Energy at chunk 95 is 39.999999404 average is 38.64166609086093
+Energy at chunk 96 is 47.9999992847 average is 38.696906639865965
+Energy at chunk 97 is 19.999999702 average is 38.69387697443667
+Energy at chunk 98 is 31.9999995232 average is 38.49696912332011
+Energy at chunk 99 is 43.9999993443 average is 38.57599942517278
+Energy at chunk 100 is 43.9999993443 average is 38.637623186630755
+Energy at chunk 101 is 39.999999404 average is 38.69803863904053
+Energy at chunk 102 is 31.9999995232 average is 38.640776123236655
+Energy at chunk 103 is -2.13162820728e-14 average is 38.43076865810612
+Energy at chunk 104 is 47.9999992847 average is 38.43809466532296
+Energy at chunk 105 is 51.9999992251 average is 38.51320697327827
+Energy at chunk 106 is 39.999999404 average is 38.53457886504233
+Energy at chunk 107 is 47.9999992847 average is 38.53333275914189
+Energy at chunk 108 is 43.9999993443 average is 38.6495407084806
+Energy at chunk 109 is 47.9999992847 average is 38.71999942302701
+Energy at chunk 110 is 51.9999992251 average is 38.7891886111852
+Energy at chunk 111 is 55.9999991655 average is 38.8642851351627
+Energy at chunk 112 is 7.99999988079 average is 38.65486668063473
+Energy at chunk 113 is 7.99999988079 average is 38.540350302896975
+Energy at chunk 114 is 47.9999992847 average is 38.413912471066325
+Energy at chunk 115 is 15.9999997616 average is 38.2758614986107
+Energy at chunk 116 is 31.9999995232 average is 38.22905925940242
+Energy at chunk 117 is 39.999999404 average is 38.264406209476896
+Energy at chunk 118 is 39.999999404 average is 38.2655456482863
+Energy at chunk 119 is 47.9999992847 average is 38.253332763314226
+Energy at chunk 120 is 19.999999702 average is 38.181817612864734
+Energy at chunk 121 is 27.9999995828 average is 38.12458959583374
+Energy at chunk 122 is 63.9999990463 average is 38.224389674314615
+Energy at chunk 123 is 39.999999404 average is 38.283870397267776
+Energy at chunk 124 is 39.999999404 average is 38.29759942932127
+Energy at chunk 125 is 1.24344978758e-14 average is 38.27301530270347
+Energy at chunk 126 is 31.9999995232 average is 38.17322777763124
+Energy at chunk 127 is 7.99999988079 average is 38.074999432638265
+Energy at chunk 128 is 31.9999995232 average is 38.009301759198635
+Energy at chunk 129 is 47.9999992847 average is 38.11076866287449
+Energy at chunk 130 is 2.13162820728e-14 average is 38.08244218061896
+Energy at chunk 131 is 31.9999995232 average is 37.93333276808259
+Energy at chunk 132 is 43.9999993443 average is 37.90676635243837
+Energy at chunk 133 is 31.9999995232 average is 37.898506897954775
+Energy at chunk 134 is 35.9999994636 average is 37.94370313829844
+Energy at chunk 135 is 35.9999994636 average is 37.941175905220625
+Energy at chunk 136 is 15.9999997616 average is 37.868612574399805
+Energy at chunk 137 is 47.9999992847 average is 37.884057406498016
+Energy at chunk 138 is 51.9999992251 average is 37.92230159318702
+Energy at chunk 139 is 43.9999993443 average is 37.96571371998104
+Energy at chunk 140 is 35.9999994636 average is 37.90638241387426
+Energy at chunk 141 is 43.9999993443 average is 37.99999943375585
+Energy at chunk 142 is 43.9999993443 average is 38.0587406916218
+Energy at chunk 143 is 23.9999996424 average is 38.06111054395634
+Energy at chunk 144 is 39.999999404 average is 38.03034426088989
+Energy at chunk 145 is 39.999999404 average is 38.04383504954101
+Energy at chunk 146 is 23.9999996424 average is 37.991836168571375
+Energy at chunk 147 is 27.9999995828 average is 37.93513456985756
+Energy at chunk 148 is 47.9999992847 average is 37.9919457426007
+Energy at chunk 149 is 35.9999994636 average is 38.06933276605604
+Energy at chunk 150 is 35.9999994636 average is 38.140396782657156
+Energy at chunk 151 is 39.999999404 average is 38.16315732606146
+Energy at chunk 152 is 59.9999991059 average is 38.237907926942775
+Energy at chunk 153 is 7.99999988079 average is 38.202596833334326
+Energy at chunk 154 is 35.9999994636 average is 38.224515559442565
+Energy at chunk 155 is 39.999999404 average is 38.26666609644889
+Energy at chunk 156 is 19.999999702 average is 38.27261089466179
+Energy at chunk 157 is 59.9999991059 average is 38.308860188647145
+Energy at chunk 158 is 31.9999995232 average is 38.33962207020452
+Energy at chunk 159 is 2.30926389122e-14 average is 38.2249994304031
+Energy at chunk 160 is 59.9999991059 average is 38.240993218984656
+Energy at chunk 161 is 23.9999996424 average is 38.1925920234786
+Energy at chunk 162 is 27.9999995828 average is 38.14478470767202
+Energy at chunk 163 is 51.9999992251 average is 38.21951162560683
+Energy at chunk 164 is 39.999999404 average is 38.23999943017959
+Energy at chunk 165 is 39.999999404 average is 38.274698224843256
+Energy at chunk 166 is 31.9999995232 average is 38.34251439871187
+Energy at chunk 167 is 39.999999404 average is 38.38095180903161
+Energy at chunk 168 is 31.9999995232 average is 38.3289935116937
+Energy at chunk 169 is 19.999999702 average is 38.24941119474522
+Energy at chunk 170 is 7.99999988079 average is 38.17075966512947
+Energy at chunk 171 is 23.9999996424 average is 38.120929664512
+Energy at chunk 172 is 47.9999992847 average is 38.11791850714324
+Energy at chunk 173 is 47.9999992847 average is 38.151723569426025
+Energy at chunk 174 is 59.9999991059 average is 38.207999430656415
+Energy at chunk 175 is 47.9999992847 average is 38.16818124943158
+Energy at chunk 176 is 39.999999404 average is 38.21468869609347
+Energy at chunk 177 is 23.9999996424 average is 38.19325785784238
+Energy at chunk 178 is 7.99999988079 average is 38.11843518618098
+Energy at chunk 179 is 39.999999404 average is 38.097777210076636
+Energy at chunk 180 is 59.9999991059 average is 38.165745287639645
+Energy at chunk 181 is 47.9999992847 average is 38.18021921129016
+Energy at chunk 182 is 47.9999992847 average is 38.15081910363962
+Energy at chunk 183 is 35.9999994636 average is 38.18260812668695
+Energy at chunk 184 is 43.9999993443 average is 38.14918862072196
+Energy at chunk 185 is 63.9999990463 average is 38.197848893173266
+Energy at chunk 186 is 31.9999995232 average is 38.2203202860878
+Energy at chunk 187 is 31.9999995232 average is 38.161701559005884
+Energy at chunk 188 is 39.999999404 average is 38.074073506726144
+Energy at chunk 189 is 51.9999992251 average is 38.096841537575955
+Energy at chunk 190 is 51.9999992251 average is 38.094240270047905
+Energy at chunk 191 is 35.9999994636 average is 38.13749943170695
+Energy at chunk 192 is 15.9999997616 average is 38.072538292778574
+Energy at chunk 193 is 39.999999404 average is 38.02061799014966
+Energy at chunk 194 is 35.9999994636 average is 38.00205071577658
+Energy at chunk 195 is 27.9999995828 average is 37.92653004709555
+Energy at chunk 196 is 19.999999702 average is 37.916750704031905
+Energy at chunk 197 is 39.999999404 average is 37.85050448648857
+Energy at chunk 198 is 35.9999994636 average is 37.88140647069893
+Energy at chunk 199 is 23.9999996424 average is 37.84399943608045
+Energy at chunk 200 is 7.99999988079 average is 37.75522331800034
+Energy at chunk 201 is 39.999999404 average is 37.75445488295933
+Energy at chunk 202 is 31.9999995232 average is 37.773398451910815
+Energy at chunk 203 is 27.9999995828 average is 37.815685711012165
+Energy at chunk 204 is 39.999999404 average is 37.713170169737275
+Energy at chunk 205 is 51.9999992251 average is 37.75922273831459
+Energy at chunk 206 is 43.9999993443 average is 37.83574822847393
+Energy at chunk 207 is 31.9999995232 average is 37.85769174356872
+Energy at chunk 208 is 51.9999992251 average is 37.906219530847075
+Energy at chunk 209 is 47.9999992847 average is 37.942856577464504
+Energy at chunk 210 is 27.9999995828 average is 37.93744019298191
+Energy at chunk 211 is 47.9999992847 average is 37.97735792465929
+Energy at chunk 212 is 51.9999992251 average is 38.01690084195473
+Energy at chunk 213 is 51.9999992251 average is 38.06355083467805
+Energy at chunk 214 is 27.9999995828 average is 38.05767385150111
+Energy at chunk 215 is 63.9999990463 average is 38.09629572861724
+Energy at chunk 216 is 43.9999993443 average is 38.145621551401604
+Energy at chunk 217 is 47.9999992847 average is 38.08807282693889
+Energy at chunk 218 is 31.9999995232 average is 38.045661533532076
+Energy at chunk 219 is 39.999999404 average is 38.09090852331031
+Energy at chunk 220 is 23.9999996424 average is 38.09954694358472
+Energy at chunk 221 is 43.9999993443 average is 38.100900333153234
+Energy at chunk 222 is 43.9999993443 average is 38.10941647248418
+Energy at chunk 223 is 43.9999993443 average is 38.1142851463386
+Energy at chunk 224 is 43.9999993443 average is 38.129777209599816
+Energy at chunk 225 is 35.9999994636 average is 38.09203483061453
+Energy at chunk 226 is 31.9999995232 average is 38.04405229653556
+Energy at chunk 227 is 55.9999991655 average is 38.05613978379651
+Energy at chunk 228 is 27.9999995828 average is 38.057641354294326
+Energy at chunk 229 is 31.9999995232 average is 38.03826030275096
+Energy at chunk 230 is 23.9999996424 average is 37.98441501840369
+Energy at chunk 231 is 47.9999992847 average is 37.97586150308108
+Energy at chunk 232 is 15.9999997616 average is 37.96738140849085
+Energy at chunk 233 is 11.9999998212 average is 37.859828495673646
+Energy at chunk 234 is 31.9999995232 average is 37.783829224211104
+Energy at chunk 235 is 51.9999992251 average is 37.82372824994184
+Energy at chunk 236 is 43.9999993443 average is 37.846412938154195
+Energy at chunk 237 is 59.9999991059 average is 37.805041453467695
+Energy at chunk 238 is 39.999999404 average is 37.85104546108006
+Energy at chunk 239 is 39.999999404 average is 37.8633327691257
+Energy at chunk 240 is 39.999999404 average is 37.898754621986534
+Energy at chunk 241 is 31.9999995232 average is 37.89752009643996
+Energy at chunk 242 is 35.9999994636 average is 37.929217541806494
+Energy at chunk 243 is 15.9999997616 average is 37.89836009100812
+Energy at chunk 244 is 15.9999997616 average is 37.81877494666041
+Energy at chunk 245 is 55.9999991655 average is 37.824389680275104
+Energy at chunk 246 is 39.999999404 average is 37.8591087475962
+Energy at chunk 247 is 31.9999995232 average is 37.893547822438904
+Energy at chunk 248 is 35.9999994636 average is 37.94056168363755
+Energy at chunk 249 is 27.9999995828 average is 37.91679943499565
+Energy at chunk 250 is 47.9999992847 average is 37.979282302590484
+Energy at chunk 251 is 51.9999992251 average is 38.02539625877426
+Energy at chunk 252 is 59.9999991059 average is 38.0584974565996
+Energy at chunk 253 is 55.9999991655 average is 38.10078683382883
+Energy at chunk 254 is 35.9999994636 average is 38.120783745681535
+Energy at chunk 255 is 63.9999990463 average is 38.16249943133444
+Energy at chunk 256 is 51.9999992251 average is 38.219454683404024
+Energy at chunk 257 is 27.9999995828 average is 38.13643354024998
+Energy at chunk 258 is 47.9999992847 average is 38.13745116915942
+Energy at chunk 259 is 51.9999992251 average is 38.17846096955813
+Energy at chunk 260 is 39.999999404 average is 38.185440044019415
+Energy at chunk 261 is 23.9999996424 average is 38.11602996637803
+Energy at chunk 262 is 23.9999996424 average is 38.1079842230213
+Energy at chunk 263 is 55.9999991655 average is 38.115150947191495
+Energy at chunk 264 is 51.9999992251 average is 38.08905603620241
+Energy at chunk 265 is 27.9999995828 average is 38.063157327551586
+Energy at chunk 266 is 23.9999996424 average is 38.07340767236238
+Energy at chunk 267 is 31.9999995232 average is 38.023880030414944
+Energy at chunk 268 is 47.9999992847 average is 38.043122109693215
+Energy at chunk 269 is 43.9999993443 average is 38.062221655050905
+Energy at chunk 270 is 43.9999993443 average is 38.0811802443543
+Energy at chunk 271 is 35.9999994636 average is 38.08823472655871
+Energy at chunk 272 is 35.9999994636 average is 38.09816793046154
+Energy at chunk 273 is 19.999999702 average is 38.12554687714054
+Energy at chunk 274 is 31.9999995232 average is 38.13818124987862
+Energy at chunk 275 is 47.9999992847 average is 38.15652117055395
+Energy at chunk 276 is 23.9999996424 average is 38.166064413230764
+Energy at chunk 277 is 23.9999996424 average is 38.1784166972843
+Energy at chunk 278 is 39.999999404 average is 38.164873983270375
+Energy at chunk 279 is 39.999999404 average is 38.17428514544452
+Energy at chunk 280 is 35.9999994636 average is 38.11530192314093
+Energy at chunk 281 is 31.9999995232 average is 38.09645333302782
+Energy at chunk 282 is 43.9999993443 average is 38.094699078987844
+Energy at chunk 283 is 43.9999993443 average is 38.12675999524727
+Energy at chunk 284 is 59.9999991059 average is 38.19789416764911
+Energy at chunk 285 is 39.999999404 average is 38.2013980321534
+Energy at chunk 286 is 55.9999991655 average is 38.17700291543887
+Energy at chunk 287 is 51.9999992251 average is 38.18611054209371
+Energy at chunk 288 is 23.9999996424 average is 38.1647053136545
+Energy at chunk 289 is 7.99999988079 average is 38.09655115645507
+Energy at chunk 290 is 55.9999991655 average is 38.13058362424987
+Energy at chunk 291 is 59.9999991059 average is 38.14794463703077
+Energy at chunk 292 is 47.9999992847 average is 38.17064789537683
+Energy at chunk 293 is 39.999999404 average is 38.21224432855236
+Energy at chunk 294 is 35.9999994636 average is 38.22372824398138
+Energy at chunk 295 is 47.9999992847 average is 38.24324267337451
+Energy at chunk 296 is 39.999999404 average is 38.286868116349886
+Energy at chunk 297 is 39.999999404 average is 38.279194060468036
+Energy at chunk 298 is 47.9999992847 average is 38.306353944241
+Energy at chunk 299 is 27.9999995828 average is 38.28533276283741
+Energy at chunk 300 is 31.9999995232 average is 38.27774029340459
+Energy at chunk 301 is 47.9999992847 average is 38.23046300648064
+Energy at chunk 302 is 51.9999992251 average is 38.25478490850713
+Energy at chunk 303 is 51.9999992251 average is 38.271052061295826
+Energy at chunk 304 is 55.9999991655 average is 38.31344205203604
+Energy at chunk 305 is 43.9999993443 average is 38.32679681450713
+Energy at chunk 306 is 35.9999994636 average is 38.350488027881724
+Energy at chunk 307 is 1.95399252334e-14 average is 38.28051891009529
+Energy at chunk 308 is 55.9999991655 average is 38.23430363738421
+Energy at chunk 309 is 47.9999992847 average is 38.2477413655481
+Energy at chunk 310 is 35.9999994636 average is 38.235369205168205
+Energy at chunk 311 is 31.9999995232 average is 38.187178918146174
+Energy at chunk 312 is 47.9999992847 average is 38.18274703486659
+Energy at chunk 313 is 43.9999993443 average is 38.20127331610698
+Energy at chunk 314 is 43.9999993443 average is 38.222221652666725
+Energy at chunk 315 is 31.9999995232 average is 38.25316398694545
+Energy at chunk 316 is 19.999999702 average is 38.19558302705596
+Energy at chunk 317 is 55.9999991655 average is 38.231445971187554
+Energy at chunk 318 is 43.9999993443 average is 38.25203704755508
+Energy at chunk 319 is 39.999999404 average is 38.287499429471794
+Energy at chunk 320 is 31.9999995232 average is 38.27538883775194
+Energy at chunk 321 is 35.9999994636 average is 38.28322924320002
+Energy at chunk 322 is 15.9999997616 average is 38.26129973945972
+Energy at chunk 323 is 23.9999996424 average is 38.20246856654132
+Energy at chunk 324 is 7.99999988079 average is 38.15384558530954
+Energy at chunk 325 is 27.9999995828 average is 38.10061292918913
+Energy at chunk 326 is 43.9999993443 average is 38.1235468325265
+Energy at chunk 327 is 43.9999993443 average is 38.13658479757426
+Energy at chunk 328 is 27.9999995828 average is 38.103342897261534
+Energy at chunk 329 is 47.9999992847 average is 38.123635795549916
+Energy at chunk 330 is 59.9999991059 average is 38.163141425282575
+Energy at chunk 331 is 47.9999992847 average is 38.18795123818409
+Energy at chunk 332 is 43.9999993443 average is 38.23183126213314
+Energy at chunk 333 is 15.9999997616 average is 38.19161619736763
+Energy at chunk 334 is 47.9999992847 average is 38.2089546545228
+Energy at chunk 335 is 35.9999994636 average is 38.21904704953943
+Energy at chunk 336 is 11.9999998212 average is 38.20771456419183
+Energy at chunk 337 is 47.9999992847 average is 38.18698167949033
+Energy at chunk 338 is 43.9999993443 average is 38.21828851604884
+Energy at chunk 339 is 47.9999992847 average is 38.23294060675537
+Energy at chunk 340 is 55.9999991655 average is 38.261583007570586
+Energy at chunk 341 is 35.9999994636 average is 38.28304036521075
+Energy at chunk 342 is 7.99999988079 average is 38.250728292993486
+Energy at chunk 343 is 35.9999994636 average is 38.25581338343232
+Energy at chunk 344 is 31.9999995232 average is 38.27246319781179
+Energy at chunk 345 is 51.9999992251 average is 38.263583244857074
+Energy at chunk 346 is 19.999999702 average is 38.270892801477174
+Energy at chunk 347 is 39.999999404 average is 38.28505690077255
+Energy at chunk 348 is 47.9999992847 average is 38.28538624898752
+Energy at chunk 349 is 27.9999995828 average is 38.26514228694779
+Energy at chunk 350 is 35.9999994636 average is 38.25640968634532
+Energy at chunk 351 is 55.9999991655 average is 38.279544884135774
+Energy at chunk 352 is 51.9999992251 average is 38.282152404055715
+Energy at chunk 353 is 39.999999404 average is 38.2666660964489
+Energy at chunk 354 is 39.999999404 average is 38.28281633095003
+Energy at chunk 355 is 35.9999994636 average is 38.28089830597465
+Energy at chunk 356 is 59.9999991059 average is 38.299159093163595
+Energy at chunk 357 is 8.881784197e-15 average is 38.26368658066462
+Energy at chunk 358 is 43.9999993443 average is 38.261837869965596
+Energy at chunk 359 is 15.9999997616 average is 38.22444387485584
+Energy at chunk 360 is 43.9999993443 average is 38.21163377963275
+Energy at chunk 361 is 35.9999994636 average is 38.22099390560092
+Energy at chunk 362 is 27.9999995828 average is 38.22589474719418
+Energy at chunk 363 is 51.9999992251 average is 38.24835107840679
+Energy at chunk 364 is 43.9999993443 average is 38.26191723807217
+Energy at chunk 365 is 51.9999992251 average is 38.29945298120624
+Energy at chunk 366 is 47.9999992847 average is 38.32588498748291
+Energy at chunk 367 is 51.9999992251 average is 38.332608124451795
+Energy at chunk 368 is 23.9999996424 average is 38.36747910307675
+Energy at chunk 369 is 15.9999997616 average is 38.34810753667677
+Energy at chunk 370 is 43.9999993443 average is 38.354716409602254
+Energy at chunk 371 is 35.9999994636 average is 38.346235987736335
+Energy at chunk 372 is 55.9999991655 average is 38.3935651115374
+Energy at chunk 373 is 51.9999992251 average is 38.42566787661078
+Energy at chunk 374 is 35.9999994636 average is 38.468266093444825
+Energy at chunk 375 is 27.9999995828 average is 38.44893559727897
+Energy at chunk 376 is 43.9999993443 average is 38.46153788841688
+Energy at chunk 377 is 51.9999992251 average is 38.48888831535975
+Energy at chunk 378 is 31.9999995232 average is 38.47598887257337
+Energy at chunk 379 is 19.999999702 average is 38.444209953452415
+Energy at chunk 380 is 51.9999992251 average is 38.45459260283493
+Energy at chunk 381 is 51.9999992251 average is 38.48795754166798
+Energy at chunk 382 is 47.9999992847 average is 38.50652684135163
+Energy at chunk 383 is 27.9999995828 average is 38.48333275988698
+Energy at chunk 384 is 51.9999992251 average is 38.5059734521903
+Energy at chunk 385 is 39.999999404 average is 38.48704605862267
+Energy at chunk 386 is 31.9999995232 average is 38.48061958163284
+Energy at chunk 387 is 35.9999994636 average is 38.49690664284623
+Energy at chunk 388 is 15.9999997616 average is 38.43084775638458
+Energy at chunk 389 is 51.9999992251 average is 38.42256353002328
+Energy at chunk 390 is 43.9999993443 average is 38.44910428639873
+Energy at chunk 391 is 27.9999995828 average is 38.436734121125575
+Energy at chunk 392 is 19.999999702 average is 38.44885438889948
+Energy at chunk 393 is 35.9999994636 average is 38.452791305181336
+Energy at chunk 394 is 51.9999992251 average is 38.466834869837456
+Energy at chunk 395 is 35.9999994636 average is 38.470706497448866
+Energy at chunk 396 is 51.9999992251 average is 38.48463418723954
+Energy at chunk 397 is 39.999999404 average is 38.488441637532794
+Energy at chunk 398 is 47.9999992847 average is 38.514285140378135
+Energy at chunk 399 is 39.999999404 average is 38.52999942585826
+Energy at chunk 400 is 31.9999995232 average is 38.48378995023761
+Energy at chunk 401 is 43.9999993443 average is 38.48955166526695
+Energy at chunk 402 is 35.9999994636 average is 38.497269897809986
+Energy at chunk 403 is 43.9999993443 average is 38.53465289113546
+Energy at chunk 404 is 43.9999993443 average is 38.52641917899803
+Energy at chunk 405 is 27.9999995828 average is 38.504432923776186
+Energy at chunk 406 is 15.9999997616 average is 38.504176330419966
+Energy at chunk 407 is 47.9999992847 average is 38.513724916296844
+Energy at chunk 408 is 15.9999997616 average is 38.499754927531434
+Energy at chunk 409 is 27.9999995828 average is 38.48195064608644
+Energy at chunk 410 is 11.9999998212 average is 38.46812594746151
+Energy at chunk 411 is 39.999999404 average is 38.4213586507781
+Energy at chunk 412 is 11.9999998212 average is 38.36900669217976
+Energy at chunk 413 is 43.9999993443 average is 38.37101392098095
+Energy at chunk 414 is 47.9999992847 average is 38.40578256023935
+Energy at chunk 415 is 39.999999404 average is 38.430768658106146
+Energy at chunk 416 is 7.99999988079 average is 38.41151021899079
+Energy at chunk 417 is 47.9999992847 average is 38.40382717893454
+Energy at chunk 418 is 31.9999995232 average is 38.394271504253076
+Energy at chunk 419 is 47.9999992847 average is 38.41523752280644
+Energy at chunk 420 is 43.9999993443 average is 38.42090204031054
+Energy at chunk 421 is 31.9999995232 average is 38.39052075495087
+Energy at chunk 422 is -2.48689957516e-14 average is 38.343261839988386
+Energy at chunk 423 is 43.9999993443 average is 38.354716409602254
+Energy at chunk 424 is 47.9999992847 average is 38.37741119283788
+Energy at chunk 425 is 27.9999995828 average is 38.39060975657383
+Energy at chunk 426 is 27.9999995828 average is 38.368149311174
+Energy at chunk 427 is 39.999999404 average is 38.36074709193172
+Energy at chunk 428 is 39.999999404 average is 38.36643299472916
+Energy at chunk 429 is 35.9999994636 average is 38.36092966093574
+Energy at chunk 430 is 23.9999996424 average is 38.34988341926146
+Energy at chunk 431 is 11.9999998212 average is 38.292592021988504
+Energy at chunk 432 is 63.9999990463 average is 38.2965352261039
+Energy at chunk 433 is 19.999999702 average is 38.30046025877176
+Energy at chunk 434 is 23.9999996424 average is 38.29701092358294
+Energy at chunk 435 is 23.9999996424 average is 38.26605447566291
+Energy at chunk 436 is 19.999999702 average is 38.23890103202663
+Energy at chunk 437 is 35.9999994636 average is 38.23744235259213
+Energy at chunk 438 is 55.9999991655 average is 38.245101935798324
+Energy at chunk 439 is 11.9999998212 average is 38.22727215764198
+Energy at chunk 440 is 39.999999404 average is 38.24036224196557
+Energy at chunk 441 is 39.999999404 average is 38.19909445341357
+Energy at chunk 442 is 43.9999993443 average is 38.18510101113309
+Energy at chunk 443 is 1.15463194561e-14 average is 38.133332765102395
+Energy at chunk 444 is 67.9999989867 average is 38.117752240989994
+Energy at chunk 445 is 19.999999702 average is 38.12017880416238
+Energy at chunk 446 is 51.9999992251 average is 38.158388693140665
+Energy at chunk 447 is 43.9999993443 average is 38.18928514522102
+Energy at chunk 448 is 47.9999992847 average is 38.22182571107402
+Energy at chunk 449 is 31.9999995232 average is 38.2133327639103
+Energy at chunk 450 is 39.999999404 average is 38.23503268967712
+Energy at chunk 451 is 39.999999404 average is 38.23716757181472
+Energy at chunk 452 is 43.9999993443 average is 38.255187067922385
+Energy at chunk 453 is 27.9999995828 average is 38.25021969434449
+Energy at chunk 454 is 15.9999997616 average is 38.206592837270804
+Energy at chunk 455 is 35.9999994636 average is 38.19473627295934
+Energy at chunk 456 is 35.9999994636 average is 38.19868652051075
+Energy at chunk 457 is 39.999999404 average is 38.206112967802454
+Energy at chunk 458 is 3.5527136788e-15 average is 38.175162829838555
+Energy at chunk 459 is 15.9999997616 average is 38.12521682319434
+Energy at chunk 460 is 59.9999991059 average is 38.14837253349723
+Energy at chunk 461 is 23.9999996424 average is 38.133332765102395
+Energy at chunk 462 is 51.9999992251 average is 38.10971865458314
+Energy at chunk 463 is 47.9999992847 average is 38.11034425969782
+Energy at chunk 464 is 31.9999995232 average is 38.114408034201595
+Energy at chunk 465 is 39.999999404 average is 38.12532132030046
+Energy at chunk 466 is 23.9999996424 average is 38.10363968917083
+Energy at chunk 467 is 43.9999993443 average is 38.09059772300415
+Energy at chunk 468 is 35.9999994636 average is 38.0963746988443
+Energy at chunk 469 is 43.9999993443 average is 38.09021219836905
+Energy at chunk 470 is 55.9999991655 average is 38.07898032429871
+Energy at chunk 471 is 19.999999702 average is 38.08135536474697
+Energy at chunk 472 is 51.9999992251 average is 38.08879435843696
+Energy at chunk 473 is 59.9999991059 average is 38.13164500141446
+Energy at chunk 474 is 31.9999995232 average is 38.1338941686028
+Energy at chunk 475 is 35.9999994636 average is 38.15125993570361
+Energy at chunk 476 is 35.9999994636 average is 38.12494702099255
+Energy at chunk 477 is 23.9999996424 average is 38.13389064514987
+Energy at chunk 478 is 35.9999994636 average is 38.11106415026373
+Energy at chunk 479 is 51.9999992251 average is 38.12999943181873
+Energy at chunk 480 is 43.9999993443 average is 38.13555036728695
+Energy at chunk 481 is 51.9999992251 average is 38.14605752286575
+Energy at chunk 482 is 47.9999992847 average is 38.13167645042728
+Energy at chunk 483 is 31.9999995232 average is 38.11404901883327
+Energy at chunk 484 is 51.9999992251 average is 38.12453551437437
+Energy at chunk 485 is 39.999999404 average is 38.1432093081651
+Energy at chunk 486 is 35.9999994636 average is 38.15852099196867
+Energy at chunk 487 is 47.9999992847 average is 38.19180270958631
+Energy at chunk 488 is 43.9999993443 average is 38.21022437949854
+Energy at chunk 489 is 43.9999993443 average is 38.202448410330994
+Energy at chunk 490 is 31.9999995232 average is 38.20936806607393
+Energy at chunk 491 is 55.9999991655 average is 38.209755528191245
+Energy at chunk 492 is 35.9999994636 average is 38.21176413648269
+Energy at chunk 493 is 47.9999992847 average is 38.22833951132501
+Energy at chunk 494 is 35.9999994636 average is 38.241615591771684
+Energy at chunk 495 is 43.9999993443 average is 38.259676849241224
+Energy at chunk 496 is 39.999999404 average is 38.26639782012829
+Energy at chunk 497 is 39.999999404 average is 38.28112392755877
+Energy at chunk 498 is 51.9999992251 average is 38.28136215501415
+Energy at chunk 499 is 39.999999404 average is 38.27679942963124
+Energy at chunk 500 is 51.9999992251 average is 38.29940062689924
+en drift = -2.13162820728e-14
+Energy at chunk 501 is 55.9999991655 average is 38.31553727765958
+Energy at chunk 502 is 23.9999996424 average is 38.3013910793642
+Energy at chunk 503 is 39.999999404 average is 38.31745974648567
+Energy at chunk 504 is 27.9999995828 average is 38.322375666575866
+Energy at chunk 505 is 47.9999992847 average is 38.347825515529394
+Energy at chunk 506 is 39.999999404 average is 38.3558179688877
+Energy at chunk 507 is 47.9999992847 average is 38.38110179028174
+Energy at chunk 508 is 15.9999997616 average is 38.39371259095393
+Energy at chunk 509 is 63.9999990463 average is 38.409411192361055
+Energy at chunk 510 is 47.9999992847 average is 38.41408944715493
+Energy at chunk 511 is 39.999999404 average is 38.421874427469454
+Energy at chunk 512 is 55.9999991655 average is 38.43586687365471
+Energy at chunk 513 is 51.9999992251 average is 38.460699815995966
+Energy at chunk 514 is 19.999999702 average is 38.46990233937514
+Energy at chunk 515 is 35.9999994636 average is 38.47751880648525
+Energy at chunk 516 is 59.9999991059 average is 38.49593753081457
+Energy at chunk 517 is 47.9999992847 average is 38.4942079206001
+Energy at chunk 518 is 31.9999995232 average is 38.47244644020335
+Energy at chunk 519 is 51.9999992251 average is 38.478460965087784
+Energy at chunk 520 is 39.999999404 average is 38.470632824055755
+Energy at chunk 521 is 23.9999996424 average is 38.46589980995519
+Energy at chunk 522 is 31.9999995232 average is 38.45353671189248
+Energy at chunk 523 is 47.9999992847 average is 38.465648281779
+Energy at chunk 524 is 47.9999992847 average is 38.477713712351665
+Energy at chunk 525 is 39.999999404 average is 38.47148231646407
+Energy at chunk 526 is 39.999999404 average is 38.47134667530911
+Energy at chunk 527 is 51.9999992251 average is 38.478787305409256
+Energy at chunk 528 is 51.9999992251 average is 38.507371826951584
+Energy at chunk 529 is 43.9999993443 average is 38.51169753933853
+Energy at chunk 530 is 47.9999992847 average is 38.538605828743194
+Energy at chunk 531 is 35.9999994636 average is 38.545864087275994
+Energy at chunk 532 is 39.999999404 average is 38.57110636708437
+Energy at chunk 533 is 31.9999995232 average is 38.590261597244925
+Energy at chunk 534 is 31.9999995232 average is 38.573457369135916
+Energy at chunk 535 is 35.9999994636 average is 38.56716360440895
+Energy at chunk 536 is 47.9999992847 average is 38.572811343283625
+Energy at chunk 537 is 15.9999997616 average is 38.56208120976682
+Energy at chunk 538 is 43.9999993443 average is 38.54990666118314
+Energy at chunk 539 is 39.999999404 average is 38.562962388330035
+Energy at chunk 540 is 39.999999404 average is 38.57892733640459
+Energy at chunk 541 is 39.999999404 average is 38.59040532901718
+Energy at chunk 542 is 51.9999992251 average is 38.58858137710318
+Energy at chunk 543 is 27.9999995828 average is 38.56176413126728
+Energy at chunk 544 is 19.999999702 average is 38.56880676472952
+Energy at chunk 545 is 31.9999995232 average is 38.565567190896026
+Energy at chunk 546 is 35.9999994636 average is 38.5608769391093
+Energy at chunk 547 is 43.9999993443 average is 38.55474395103698
+Energy at chunk 548 is 55.9999991655 average is 38.57340561828978
+Energy at chunk 549 is 27.9999995828 average is 38.58909033406865
+Energy at chunk 550 is 39.999999404 average is 38.6018143068208
+Energy at chunk 551 is 71.9999989271 average is 38.61739072890386
+Energy at chunk 552 is 47.9999992847 average is 38.634357471319476
+Energy at chunk 553 is 47.9999992847 average is 38.66281530835568
+Energy at chunk 554 is 47.9999992847 average is 38.68684627036791
+Energy at chunk 555 is 47.9999992847 average is 38.694963452177085
+Energy at chunk 556 is 43.9999993443 average is 38.68725256534625
+Energy at chunk 557 is 51.9999992251 average is 38.68960515824698
+Energy at chunk 558 is 31.9999995232 average is 38.69481158798198
+Energy at chunk 559 is 15.9999997616 average is 38.69571370910321
+Energy at chunk 560 is 31.9999995232 average is 38.676648265027744
+Energy at chunk 561 is 27.9999995828 average is 38.6633446196008
+Energy at chunk 562 is 31.9999995232 average is 38.637299601879256
+Energy at chunk 563 is 43.9999993443 average is 38.62553133932834
+Energy at chunk 564 is 43.9999993443 average is 38.62937995535083
+Energy at chunk 565 is 27.9999995828 average is 38.59646585596324
+Energy at chunk 566 is 27.9999995828 average is 38.56790065986139
+Energy at chunk 567 is 23.9999996424 average is 38.54788674953538
+Energy at chunk 568 is 15.9999997616 average is 38.50966550700484
+Energy at chunk 569 is 35.9999994636 average is 38.50806960162364
+Energy at chunk 570 is 39.999999404 average is 38.49246877843152
+Energy at chunk 571 is 15.9999997616 average is 38.49090851734985
+Energy at chunk 572 is 31.9999995232 average is 38.48795754166798
+Energy at chunk 573 is 47.9999992847 average is 38.49337921734471
+Energy at chunk 574 is 39.999999404 average is 38.509912469635836
+Energy at chunk 575 is 51.9999992251 average is 38.519443870459995
+Energy at chunk 576 is 43.9999993443 average is 38.5233963063726
+Energy at chunk 577 is 43.9999993443 average is 38.54117589627995
+Energy at chunk 578 is 35.9999994636 average is 38.545077145840835
+Energy at chunk 579 is 31.9999995232 average is 38.54068908087139
+Energy at chunk 580 is 59.9999991059 average is 38.51841594926667
+Energy at chunk 581 is 15.9999997616 average is 38.50721592104312
+Energy at chunk 582 is 55.9999991655 average is 38.513893079614554
+Energy at chunk 583 is 59.9999991059 average is 38.520547371204586
+Energy at chunk 584 is 7.99999988079 average is 38.49846096478976
+Energy at chunk 585 is 39.999999404 average is 38.490101815531276
+Energy at chunk 586 is 39.999999404 average is 38.50766552499856
+Energy at chunk 587 is 39.999999404 average is 38.49523752161435
+Energy at chunk 588 is 31.9999995232 average is 38.497792295608136
+Energy at chunk 589 is 39.999999404 average is 38.47864349442014
+Energy at chunk 590 is 23.9999996424 average is 38.46632768399825
+Energy at chunk 591 is 55.9999991655 average is 38.47567510234344
+Energy at chunk 592 is 27.9999995828 average is 38.487689139810826
+Energy at chunk 593 is 31.9999995232 average is 38.49023511668649
+Energy at chunk 594 is 23.9999996424 average is 38.465881779754866
+Energy at chunk 595 is 43.9999993443 average is 38.46845580261426
+Energy at chunk 596 is 47.9999992847 average is 38.48442153709019
+Energy at chunk 597 is 23.9999996424 average is 38.47090243677232
+Energy at chunk 598 is 35.9999994636 average is 38.47211962705463
+Energy at chunk 599 is 35.9999994636 average is 38.477332759976385
+Energy at chunk 600 is 43.9999993443 average is 38.45324401934809
+Energy at chunk 601 is 55.9999991655 average is 38.475746934972335
+Energy at chunk 602 is 47.9999992847 average is 38.48490821591657
+Energy at chunk 603 is 59.9999991059 average is 38.49536366478497
+Energy at chunk 604 is 59.9999991059 average is 38.521652318544625
+Energy at chunk 605 is -3.19744231092e-14 average is 38.50032945930368
+Energy at chunk 606 is 35.9999994636 average is 38.48303072804085
+Energy at chunk 607 is 35.9999994636 average is 38.48157837394821
+Energy at chunk 608 is 55.9999991655 average is 38.498521593815
+Energy at chunk 609 is 23.9999996424 average is 38.478687951213026
+Energy at chunk 610 is 63.9999990463 average is 38.49034312530352
+Energy at chunk 611 is 31.9999995232 average is 38.49411707345177
+Energy at chunk 612 is 31.9999995232 average is 38.48221802363388
+Energy at chunk 613 is 23.9999996424 average is 38.48468998027935
+Energy at chunk 614 is 23.9999996424 average is 38.483251459075184
+Energy at chunk 615 is 39.999999404 average is 38.483116309673754
+Energy at chunk 616 is 55.9999991655 average is 38.4959475625083
+Energy at chunk 617 is 47.9999992847 average is 38.51262078534052
+Energy at chunk 618 is 15.9999997616 average is 38.49176033111304
+Energy at chunk 619 is 39.999999404 average is 38.48774136197182
+Energy at chunk 620 is 43.9999993443 average is 38.495329539096296
+Energy at chunk 621 is 47.9999992847 average is 38.51318270585161
+Energy at chunk 622 is 39.999999404 average is 38.51171692211785
+Energy at chunk 623 is 35.9999994636 average is 38.49230711872761
+Energy at chunk 624 is 39.999999404 average is 38.47167942672729
+Energy at chunk 625 is 39.999999404 average is 38.458785369411444
+Energy at chunk 626 is 43.9999993443 average is 38.458691611928806
+Energy at chunk 627 is 51.9999992251 average is 38.46878923568756
+Energy at chunk 628 is 47.9999992847 average is 38.46613615177015
+Energy at chunk 629 is 39.999999404 average is 38.4787295853524
+Energy at chunk 630 is 15.9999997616 average is 38.45958738253347
+Energy at chunk 631 is 39.999999404 average is 38.443037401837636
+Energy at chunk 632 is 39.999999404 average is 38.43033118089794
+Energy at chunk 633 is 51.9999992251 average is 38.45678176133415
+Energy at chunk 634 is 51.9999992251 average is 38.46677108034374
+Energy at chunk 635 is 27.9999995828 average is 38.45282961568743
+Energy at chunk 636 is 31.9999995232 average is 38.435164262436246
+Energy at chunk 637 is 15.9999997616 average is 38.418808204944604
+Energy at chunk 638 is 51.9999992251 average is 38.406259208609804
+Energy at chunk 639 is 51.9999992251 average is 38.42499942742288
+Energy at chunk 640 is 43.9999993443 average is 38.433696775187194
+Energy at chunk 641 is 31.9999995232 average is 38.443613134310624
+Energy at chunk 642 is 55.9999991655 average is 38.45847532116977
+Energy at chunk 643 is 43.9999993443 average is 38.439750979998095
+Energy at chunk 644 is 7.99999988079 average is 38.439689349684606
+Energy at chunk 645 is 35.9999994636 average is 38.442104690325884
+Energy at chunk 646 is 35.9999994636 average is 38.45316789686404
+Energy at chunk 647 is 55.9999991655 average is 38.48148090806272
+Energy at chunk 648 is 47.9999992847 average is 38.482588024407576
+Energy at chunk 649 is 23.9999996424 average is 38.48984558030275
+Energy at chunk 650 is 59.9999991059 average is 38.50691186859861
+Energy at chunk 651 is 55.9999991655 average is 38.52147181862337
+Energy at chunk 652 is 35.9999994636 average is 38.52618625593039
+Energy at chunk 653 is 47.9999992847 average is 38.49785875355432
+Energy at chunk 654 is 47.9999992847 average is 38.50992309027956
+Energy at chunk 655 is 39.999999404 average is 38.50609698719004
+Energy at chunk 656 is 43.9999993443 average is 38.52176502719862
+Energy at chunk 657 is 43.9999993443 average is 38.530090611267234
+Energy at chunk 658 is 43.9999993443 average is 38.533535085896624
+Energy at chunk 659 is 23.9999996424 average is 38.53939336511222
+Energy at chunk 660 is 39.999999404 average is 38.52828989487012
+Energy at chunk 661 is 39.999999404 average is 38.51601151065884
+Energy at chunk 662 is 63.9999990463 average is 38.54117589627995
+Energy at chunk 663 is 43.9999993443 average is 38.56144520852221
+Energy at chunk 664 is 19.999999702 average is 38.55879641791035
+Energy at chunk 665 is 63.9999990463 average is 38.565765191091074
+Energy at chunk 666 is 15.9999997616 average is 38.55712086473448
+Energy at chunk 667 is 39.999999404 average is 38.55568804822996
+Energy at chunk 668 is 63.9999990463 average is 38.56502184686105
+Energy at chunk 669 is 35.9999994636 average is 38.575521813239625
+Energy at chunk 670 is 39.999999404 average is 38.57406797959801
+Energy at chunk 671 is 31.9999995232 average is 38.57261847284224
+Energy at chunk 672 is 47.9999992847 average is 38.5806829317895
+Energy at chunk 673 is 51.9999992251 average is 38.600592896616426
+Energy at chunk 674 is 15.9999997616 average is 38.60385127660963
+Energy at chunk 675 is 39.999999404 average is 38.590531969334954
+Energy at chunk 676 is 43.9999993443 average is 38.584342113379364
+Energy at chunk 677 is 15.9999997616 average is 38.5486719919517
+Energy at chunk 678 is 31.9999995232 average is 38.55316584672071
+Energy at chunk 679 is 43.9999993443 average is 38.55882295484052
+Energy at chunk 680 is 55.9999991655 average is 38.56328870583211
+Energy at chunk 681 is 39.999999404 average is 38.56422229924859
+Energy at chunk 682 is 43.9999993443 average is 38.56983837109185
+Energy at chunk 683 is 55.9999991655 average is 38.56725088729147
+Energy at chunk 684 is 27.9999995828 average is 38.56700672457688
+Energy at chunk 685 is 39.999999404 average is 38.552769104819255
+Energy at chunk 686 is 19.999999702 average is 38.52925706779072
+Energy at chunk 687 is 35.9999994636 average is 38.51627849583016
+Energy at chunk 688 is 35.9999994636 average is 38.52307634903834
+Energy at chunk 689 is 31.9999995232 average is 38.5078255131452
+Energy at chunk 690 is 47.9999992847 average is 38.51461592391672
+Energy at chunk 691 is 47.9999992847 average is 38.5248549172644
+Energy at chunk 692 is 19.999999702 average is 38.516593942652534
+Energy at chunk 693 is 27.9999995828 average is 38.50259308620901
+Energy at chunk 694 is 23.9999996424 average is 38.48978359911939
+Energy at chunk 695 is 63.9999990463 average is 38.50344770211598
+Energy at chunk 696 is 39.999999404 average is 38.51592482061605
+Energy at chunk 697 is 43.9999993443 average is 38.50544355229867
+Energy at chunk 698 is 7.99999988079 average is 38.494992273304085
+Energy at chunk 699 is 63.9999990463 average is 38.514285140378135
+Energy at chunk 700 is 47.9999992847 average is 38.517545788383345
+Energy at chunk 701 is 35.9999994636 average is 38.51965754567048
+Energy at chunk 702 is 51.9999992251 average is 38.526315215386845
+Energy at chunk 703 is 43.9999993443 average is 38.530681244029914
+Energy at chunk 704 is 43.9999993443 average is 38.54978665960596
+Energy at chunk 705 is 51.9999992251 average is 38.55410707422424
+Energy at chunk 706 is 35.9999994636 average is 38.54483676651411
+Energy at chunk 707 is 19.999999702 average is 38.51638360685211
+Energy at chunk 708 is 43.9999993443 average is 38.52975965153179
+Energy at chunk 709 is 51.9999992251 average is 38.548731819945324
+Energy at chunk 710 is 31.9999995232 average is 38.526019116494226
+Energy at chunk 711 is 19.999999702 average is 38.522471336082795
+Energy at chunk 712 is 47.9999992847 average is 38.51668946813233
+Energy at chunk 713 is 43.9999993443 average is 38.521007829353586
+Energy at chunk 714 is 35.9999994636 average is 38.52307634903834
+Energy at chunk 715 is 55.9999991655 average is 38.52737372757336
+Energy at chunk 716 is 43.9999993443 average is 38.533890639189394
+Energy at chunk 717 is 51.9999992251 average is 38.548188840628995
+Energy at chunk 718 is 39.999999404 average is 38.56022195670137
+Energy at chunk 719 is 35.9999994636 average is 38.57111053635677
+Energy at chunk 720 is 11.9999998212 average is 38.55312009125576
+Energy at chunk 721 is 51.9999992251 average is 38.55512407922348
+Energy at chunk 722 is 35.9999994636 average is 38.570400531756924
+Energy at chunk 723 is 43.9999993443 average is 38.560220419883066
+Energy at chunk 724 is 39.999999404 average is 38.574344252783675
+Energy at chunk 725 is 19.999999702 average is 38.54104625764957
+Energy at chunk 726 is 39.999999404 average is 38.53535018231223
+Energy at chunk 727 is 43.9999993443 average is 38.52087854687329
+Energy at chunk 728 is 47.9999992847 average is 38.53827103067327
+Energy at chunk 729 is 35.9999994636 average is 38.54794463107031
+Energy at chunk 730 is 55.9999991655 average is 38.561969329622634
+Energy at chunk 731 is 51.9999992251 average is 38.57486281316788
+Energy at chunk 732 is 43.9999993443 average is 38.58008128050079
+Energy at chunk 733 is 35.9999994636 average is 38.58855528329634
+Energy at chunk 734 is 31.9999995232 average is 38.58721030935949
+Energy at chunk 735 is 39.999999404 average is 38.578260294704336
+Energy at chunk 736 is 51.9999992251 average is 38.584531311070094
+Energy at chunk 737 is 35.9999994636 average is 38.58753330033969
+Energy at chunk 738 is 47.9999992847 average is 38.597022428919075
+Energy at chunk 739 is 51.9999992251 average is 38.58810753310049
+Energy at chunk 740 is 27.9999995828 average is 38.577057454846646
+Energy at chunk 741 is 31.9999995232 average is 38.5628026598708
+Energy at chunk 742 is 39.999999404 average is 38.55612324781084
+Energy at chunk 743 is 35.9999994636 average is 38.568816629580915
+Energy at chunk 744 is 31.9999995232 average is 38.571811505772125
+Energy at chunk 745 is 35.9999994636 average is 38.57587073884765
+Energy at chunk 746 is 51.9999992251 average is 38.584202905639586
+Energy at chunk 747 is 35.9999994636 average is 38.58181760690429
+Energy at chunk 748 is 39.999999404 average is 38.56234922510919
+Energy at chunk 749 is 43.9999993443 average is 38.565332758665086
+Energy at chunk 750 is 47.9999992847 average is 38.567243100403154
+Energy at chunk 751 is 51.9999992251 average is 38.57233985075925
+Energy at chunk 752 is 11.9999998212 average is 38.55404989030732
+Energy at chunk 753 is 4.97379915032e-14 average is 38.53368642845584
+Energy at chunk 754 is 39.999999404 average is 38.53668816748044
+Energy at chunk 755 is 43.9999993443 average is 38.53227455809949
+Energy at chunk 756 is 55.9999991655 average is 38.54266785367477
+Energy at chunk 757 is 35.9999994636 average is 38.54881209048558
+Energy at chunk 758 is 35.9999994636 average is 38.54229191579366
+Energy at chunk 759 is 63.9999990463 average is 38.56947310948058
+Energy at chunk 760 is 35.9999994636 average is 38.57345540418575
+Energy at chunk 761 is 43.9999993443 average is 38.58267659042764
+Energy at chunk 762 is 23.9999996424 average is 38.583485663593365
+Energy at chunk 763 is 55.9999991655 average is 38.59895230441193
+Energy at chunk 764 is 47.9999992847 average is 38.61228700633143
+Energy at chunk 765 is 47.9999992847 average is 38.62245373257458
+Energy at chunk 766 is 51.9999992251 average is 38.63259394844943
+Energy at chunk 767 is 31.9999995232 average is 38.63229109100066
+Energy at chunk 768 is 27.9999995828 average is 38.6257471487488
+Energy at chunk 769 is 47.9999992847 average is 38.63896046319565
+Energy at chunk 770 is 43.9999993443 average is 38.643838594071134
+Energy at chunk 771 is 51.9999992251 average is 38.650776626131076
+Energy at chunk 772 is 35.9999994636 average is 38.66494120909974
+Energy at chunk 773 is 43.9999993443 average is 38.677002007647076
+Energy at chunk 774 is 51.9999992251 average is 38.69006393960215
+Energy at chunk 775 is 39.999999404 average is 38.6958757120463
+Energy at chunk 776 is 15.9999997616 average is 38.682110105702314
+Energy at chunk 777 is 43.9999993443 average is 38.68997371653358
+Energy at chunk 778 is 35.9999994636 average is 38.670089282564085
+Energy at chunk 779 is 27.9999995828 average is 38.655384039374496
+Energy at chunk 780 is 23.9999996424 average is 38.65710569797191
+Energy at chunk 781 is 7.99999988079 average is 38.64347768503686
+Energy at chunk 782 is 51.9999992251 average is 38.64112330670558
+Energy at chunk 783 is 15.9999997616 average is 38.64795860777401
+Energy at chunk 784 is 47.9999992847 average is 38.629298787435914
+Energy at chunk 785 is 23.9999996424 average is 38.629007057970725
+Energy at chunk 786 is 47.9999992847 average is 38.63379866192272
+Energy at chunk 787 is 27.9999995828 average is 38.622334449863075
+Energy at chunk 788 is 35.9999994636 average is 38.60684353117708
+Energy at chunk 789 is 35.9999994636 average is 38.60556904498536
+Energy at chunk 790 is 39.999999404 average is 38.61845707308629
+Energy at chunk 791 is 19.999999702 average is 38.596969121830035
+Energy at chunk 792 is 55.9999991655 average is 38.61185314468899
+Energy at chunk 793 is 51.9999992251 average is 38.62367700632634
+Energy at chunk 794 is 23.9999996424 average is 38.60729502219075
+Energy at chunk 795 is 43.9999993443 average is 38.61004967592171
+Energy at chunk 796 is 19.999999702 average is 38.58469202228293
+Energy at chunk 797 is 39.999999404 average is 38.571427996669506
+Energy at chunk 798 is 43.9999993443 average is 38.58823471910814
+Energy at chunk 799 is 51.9999992251 average is 38.59699942485989
+Energy at chunk 800 is 27.9999995828 average is 38.59675348229177
+Energy at chunk 801 is 39.999999404 average is 38.60648321524226
+Energy at chunk 802 is 59.9999991059 average is 38.621170034711426
+Energy at chunk 803 is 11.9999998212 average is 38.62089494689188
+Energy at chunk 804 is 19.999999702 average is 38.61267023207979
+Energy at chunk 805 is 31.9999995232 average is 38.604465925989324
+Energy at chunk 806 is 31.9999995232 average is 38.59132532333354
+Energy at chunk 807 is 47.9999992847 average is 38.60296972180063
+Energy at chunk 808 is 43.9999993443 average is 38.61656308340645
+Energy at chunk 809 is 31.9999995232 average is 38.619258683787464
+Energy at chunk 810 is 35.9999994636 average is 38.603205343386406
+Energy at chunk 811 is 27.9999995828 average is 38.599999424815195
+Energy at chunk 812 is 43.9999993443 average is 38.59778540270796
+Energy at chunk 813 is 47.9999992847 average is 38.60147362626743
+Energy at chunk 814 is 31.9999995232 average is 38.59828163342975
+Energy at chunk 815 is 63.9999990463 average is 38.59901903267294
+Energy at chunk 816 is 63.9999990463 average is 38.61640089335904
+Energy at chunk 817 is 27.9999995828 average is 38.61809233408104
+Energy at chunk 818 is 47.9999992847 average is 38.62759405199863
+Energy at chunk 819 is 35.9999994636 average is 38.63317015602823
+Energy at chunk 820 is 43.9999993443 average is 38.627039619296546
+Energy at chunk 821 is 47.9999992847 average is 38.642335190607696
+Energy at chunk 822 is 43.9999993443 average is 38.63523636232171
+Energy at chunk 823 is 19.999999702 average is 38.624271269113706
+Energy at chunk 824 is 39.999999404 average is 38.61818124272608
+Energy at chunk 825 is 27.9999995828 average is 38.593704025393265
+Energy at chunk 826 is 51.9999992251 average is 38.606045373939125
+Energy at chunk 827 is 35.9999994636 average is 38.60869507685953
+Energy at chunk 828 is 55.9999991655 average is 38.61905853188945
+Energy at chunk 829 is 47.9999992847 average is 38.621686171479986
+Energy at chunk 830 is 51.9999992251 average is 38.64452409322513
+Energy at chunk 831 is 55.9999991655 average is 38.649037885622924
+Energy at chunk 832 is 47.9999992847 average is 38.66122391369879
+Energy at chunk 833 is 35.9999994636 average is 38.662829160089984
+Energy at chunk 834 is 35.9999994636 average is 38.66059822630741
+Energy at chunk 835 is 31.9999995232 average is 38.66220038082612
+Energy at chunk 836 is 39.999999404 average is 38.651373378649424
+Energy at chunk 837 is 27.9999995828 average is 38.64248152442082
+Energy at chunk 838 is 43.9999993443 average is 38.64409954334756
+Energy at chunk 839 is 23.9999996424 average is 38.63238037671363
+Energy at chunk 840 is 51.9999992251 average is 38.629250316174804
+Energy at chunk 841 is 35.9999994636 average is 38.62042697795498
+Energy at chunk 842 is 39.999999404 average is 38.63914533170518
+Energy at chunk 843 is 35.9999994636 average is 38.646444921753435
+Energy at chunk 844 is 47.9999992847 average is 38.64804676137734
+Energy at chunk 845 is 23.9999996424 average is 38.63546041719459
+Energy at chunk 846 is 35.9999994636 average is 38.63140438302491
+Energy at chunk 847 is 55.9999991655 average is 38.6396220657342
+Energy at chunk 848 is 55.9999991655 average is 38.651589530053506
+Energy at chunk 849 is 43.9999993443 average is 38.658822953350416
+Energy at chunk 850 is 55.9999991655 average is 38.67261987026655
+Energy at chunk 851 is 43.9999993443 average is 38.680750597320824
+Energy at chunk 852 is 7.99999988079 average is 38.67104280007544
+Energy at chunk 853 is 51.9999992251 average is 38.67166218721338
+Energy at chunk 854 is 19.999999702 average is 38.66947310799048
+Energy at chunk 855 is 79.9999988079 average is 38.67756951711725
+Energy at chunk 856 is 51.9999992251 average is 38.68284656477087
+Energy at chunk 857 is 31.9999995232 average is 38.68251690610307
+Energy at chunk 858 is 39.999999404 average is 38.67380617575264
+Energy at chunk 859 is 7.9936057773e-14 average is 38.65116221475048
+Energy at chunk 860 is 35.9999994636 average is 38.64250813498315
+Energy at chunk 861 is 51.9999992251 average is 38.65336369316153
+Energy at chunk 862 is 35.9999994636 average is 38.65214310885858
+Energy at chunk 863 is 27.9999995828 average is 38.65092534998226
+Energy at chunk 864 is 27.9999995828 average is 38.65063526221095
+Energy at chunk 865 is 31.9999995232 average is 38.64480311929768
+Energy at chunk 866 is 23.9999996424 average is 38.64175259605
+Energy at chunk 867 is 47.9999992847 average is 38.64792569138214
+Energy at chunk 868 is 43.9999993443 average is 38.64948158748406
+Energy at chunk 869 is 23.9999996424 average is 38.64551666551624
+Energy at chunk 870 is 43.9999993443 average is 38.62410964259599
+Energy at chunk 871 is 15.9999997616 average is 38.609173736605086
+Energy at chunk 872 is 35.9999994636 average is 38.60160309031249
+Energy at chunk 873 is 23.9999996424 average is 38.60320308609469
+Energy at chunk 874 is 55.9999991655 average is 38.60571371044433
+Energy at chunk 875 is 47.9999992847 average is 38.62374371669882
+Energy at chunk 876 is 47.9999992847 average is 38.62713739476428
+Energy at chunk 877 is 11.9999998212 average is 38.61412243143845
+Energy at chunk 878 is 51.9999992251 average is 38.622069959184834
+Energy at chunk 879 is 7.99999988079 average is 38.60545397018846
+Energy at chunk 880 is 27.9999995828 average is 38.60431270511414
+Energy at chunk 881 is 31.9999995232 average is 38.61133729312697
+Energy at chunk 882 is 63.9999990463 average is 38.630123999677735
+Energy at chunk 883 is 35.9999994636 average is 38.636198519298404
+Energy at chunk 884 is 39.999999404 average is 38.65129885907902
+Energy at chunk 885 is 7.99999988079 average is 38.63295653493357
+Energy at chunk 886 is 47.9999992847 average is 38.64261498224105
+Energy at chunk 887 is 51.9999992251 average is 38.64053996475163
+Energy at chunk 888 is 39.999999404 average is 38.63936950296869
+Energy at chunk 889 is 31.9999995232 average is 38.63460616587255
+Energy at chunk 890 is 51.9999992251 average is 38.63254712354456
+Energy at chunk 891 is 27.9999995828 average is 38.62152408817158
+Energy at chunk 892 is 39.999999404 average is 38.618588450294084
+Energy at chunk 893 is 31.9999995232 average is 38.61386967069353
+Energy at chunk 894 is 51.9999992251 average is 38.62435696635169
+Energy at chunk 895 is 43.9999993443 average is 38.61964228166536
+Energy at chunk 896 is 15.9999997616 average is 38.60958693860768
+Energy at chunk 897 is 27.9999995828 average is 38.59153617327094
+Energy at chunk 898 is 15.9999997616 average is 38.58064458639394
+Energy at chunk 899 is 59.9999991059 average is 38.58399942505362
+Energy at chunk 900 is 31.9999995232 average is 38.578467793615516
+Energy at chunk 901 is 55.9999991655 average is 38.588026032532426
+Energy at chunk 902 is 47.9999992847 average is 38.596677165728494
+Energy at chunk 903 is 59.9999991059 average is 38.61504367237864
+Energy at chunk 904 is 47.9999992847 average is 38.61392207654144
+Energy at chunk 905 is 39.999999404 average is 38.61721796760499
+Energy at chunk 906 is 55.9999991655 average is 38.62668079156205
+Energy at chunk 907 is 55.9999991655 average is 38.63259854327217
+Energy at chunk 908 is 43.9999993443 average is 38.62618204268688
+Energy at chunk 909 is 43.9999993443 average is 38.63120821555895
+Energy at chunk 910 is 35.9999994636 average is 38.62831995128672
+Energy at chunk 911 is 35.9999994636 average is 38.62456082795798
+Energy at chunk 912 is 35.9999994636 average is 38.61117138521828
+Energy at chunk 913 is 31.9999995232 average is 38.60831452315957
+Energy at chunk 914 is 35.9999994636 average is 38.60808685638868
+Energy at chunk 915 is 43.9999993443 average is 38.6008727872476
+Energy at chunk 916 is 43.9999993443 average is 38.612867472606005
+Energy at chunk 917 is 43.9999993443 average is 38.601306614338206
+Energy at chunk 918 is 23.9999996424 average is 38.601087564080814
+Energy at chunk 919 is 27.9999995828 average is 38.5947820335886
+Energy at chunk 920 is 23.9999996424 average is 38.60238813270578
+Energy at chunk 921 is 43.9999993443 average is 38.61344844847597
+Energy at chunk 922 is 55.9999991655 average is 38.63141870928743
+Energy at chunk 923 is 23.9999996424 average is 38.626839251255085
+Energy at chunk 924 is 19.999999702 average is 38.606702127418025
+Energy at chunk 925 is 23.9999996424 average is 38.58488063454373
+Energy at chunk 926 is 43.9999993443 average is 38.59676317890874
+Energy at chunk 927 is 47.9999992847 average is 38.61034425224726
+Energy at chunk 928 is 51.9999992251 average is 38.623896087537695
+Energy at chunk 929 is 23.9999996424 average is 38.62881662868687
+Energy at chunk 930 is 31.9999995232 average is 38.618259360096275
+Energy at chunk 931 is 51.9999992251 average is 38.629183973736545
+Energy at chunk 932 is 47.9999992847 average is 38.640942618202956
+Energy at chunk 933 is 47.9999992847 average is 38.65524567666863
+Energy at chunk 934 is 35.9999994636 average is 38.649838996265046
+Energy at chunk 935 is 39.999999404 average is 38.65470027870095
+Energy at chunk 936 is 27.9999995828 average is 38.64674435474832
+Energy at chunk 937 is 15.9999997616 average is 38.635393880577766
+Energy at chunk 938 is 35.9999994636 average is 38.617251820724256
+Energy at chunk 939 is 43.9999993443 average is 38.62723346696257
+Energy at chunk 940 is 47.9999992847 average is 38.63464342004817
+Energy at chunk 941 is 47.9999992847 average is 38.64373615452441
+Energy at chunk 942 is 63.9999990463 average is 38.657051385789025
+Energy at chunk 943 is 35.9999994636 average is 38.662711288287504
+Energy at chunk 944 is 35.9999994636 average is 38.66074016465083
+Energy at chunk 945 is 55.9999991655 average is 38.661310206142616
+Energy at chunk 946 is 35.9999994636 average is 38.67032677329206
+Energy at chunk 947 is 19.999999702 average is 38.65991503573674
+Energy at chunk 948 is 43.9999993443 average is 38.64868224811506
+Energy at chunk 949 is 15.9999997616 average is 38.64926258197586
+Energy at chunk 950 is 39.999999404 average is 38.659095112683296
+Energy at chunk 951 is 59.9999991059 average is 38.646217911521454
+Energy at chunk 952 is 47.9999992847 average is 38.654354093470104
+Energy at chunk 953 is 43.9999993443 average is 38.66247321843354
+Energy at chunk 954 is 43.9999993443 average is 38.663036073090545
+Energy at chunk 955 is 23.9999996424 average is 38.67280277101068
+Energy at chunk 956 is 47.9999992847 average is 38.68087716655674
+Energy at chunk 957 is 31.9999995232 average is 38.679748901706176
+Energy at chunk 958 is 51.9999992251 average is 38.68613081039306
+Energy at chunk 959 is 43.9999993443 average is 38.69249942343684
+Energy at chunk 960 is 55.9999991655 average is 38.70468204552378
+Energy at chunk 961 is 43.9999993443 average is 38.70602852926435
+Energy at chunk 962 is 75.9999988675 average is 38.71900253830672
+Energy at chunk 963 is 39.999999404 average is 38.72365087525481
+Energy at chunk 964 is 43.9999993443 average is 38.72663154728057
+Energy at chunk 965 is 55.9999991655 average is 38.72629341879249
+Energy at chunk 966 is 27.9999995828 average is 38.7342289988233
+Energy at chunk 967 is 27.9999995828 average is 38.740495290490244
+Energy at chunk 968 is 55.9999991655 average is 38.750876615549416
+Energy at chunk 969 is 43.9999993443 average is 38.761236535814646
+Energy at chunk 970 is 7.99999988079 average is 38.74685833096875
+Energy at chunk 971 is 11.9999998212 average is 38.72510230360946
+Energy at chunk 972 is 55.9999991655 average is 38.74038996743031
+Energy at chunk 973 is 19.999999702 average is 38.73593371437073
+Energy at chunk 974 is 15.9999997616 average is 38.73640967919279
+Energy at chunk 975 is 35.9999994636 average is 38.72950761960669
+Energy at chunk 976 is 31.9999995232 average is 38.73326452006584
+Energy at chunk 977 is 1.20792265079e-13 average is 38.72965177462147
+Energy at chunk 978 is 35.9999994636 average is 38.713789004324916
+Energy at chunk 979 is 27.9999995828 average is 38.71101983132414
+Energy at chunk 980 is 39.999999404 average is 38.716411247749235
+Energy at chunk 981 is 47.9999992847 average is 38.72423567550976
+Energy at chunk 982 is 35.9999994636 average is 38.72553350229353
+Energy at chunk 983 is 31.9999995232 average is 38.726015683100016
+Energy at chunk 984 is 39.999999404 average is 38.72730906758819
+Energy at chunk 985 is 39.999999404 average is 38.73427934167837
+Energy at chunk 986 is 59.9999991059 average is 38.74204602857493
+Energy at chunk 987 is 55.9999991655 average is 38.74898727684612
+Energy at chunk 988 is 67.9999989867 average is 38.759958977537785
+Energy at chunk 989 is 35.9999994636 average is 38.771716593973586
+Energy at chunk 990 is 31.9999995232 average is 38.767305174088044
+Energy at chunk 991 is 59.9999991059 average is 38.773386519005726
+Energy at chunk 992 is 51.9999992251 average is 38.772204860315604
+Energy at chunk 993 is 19.999999702 average is 38.77987869778872
+Energy at chunk 994 is 23.9999996424 average is 38.76261248771871
+Energy at chunk 995 is 43.9999993443 average is 38.7678709082575
+Energy at chunk 996 is 51.9999992251 average is 38.77953803798741
+Energy at chunk 997 is 19.999999702 average is 38.76953850044519
+Energy at chunk 998 is 23.9999996424 average is 38.763562985941476
+Energy at chunk 999 is 51.9999992251 average is 38.762399422395255
+
+DONE MC
+
+MC TIME 1.98646807671
+end mc; start analysis
+BASIC MC ANALYSIS. Feel free to program what you want instead, I cannot predict it. Quantites are currently in atomic units (the Rydberg type) or fractional 
+
+FINAL STRUCTURE 
+atom pos(crystal coords) 
+-------------
+Mn	0.0   0.0   0.0
+Mn	0.0   0.16666666666666666   0.0
+Mn	0.0   0.3333333333333333   0.0
+Mn	0.0   0.5   0.0
+Mn	0.0   0.6666666666666666   0.0
+Mn	0.0   0.8333333333333334   0.0
+Mn	0.16666666666666666   0.0   0.0
+Mn	0.16666666666666666   0.16666666666666666   0.0
+Mn	0.16666666666666666   0.3333333333333333   0.0
+Fe	0.16666666666666666   0.5   0.0
+Fe	0.16666666666666666   0.6666666666666666   0.0
+Fe	0.16666666666666666   0.8333333333333334   0.0
+Fe	0.3333333333333333   0.0   0.0
+Fe	0.3333333333333333   0.16666666666666666   0.0
+Fe	0.3333333333333333   0.3333333333333333   0.0
+Mn	0.3333333333333333   0.5   0.0
+Fe	0.3333333333333333   0.6666666666666666   0.0
+Fe	0.3333333333333333   0.8333333333333334   0.0
+Fe	0.5   0.0   0.0
+Fe	0.5   0.16666666666666666   0.0
+Fe	0.5   0.3333333333333333   0.0
+Fe	0.5   0.5   0.0
+Fe	0.5   0.6666666666666666   0.0
+Fe	0.5   0.8333333333333334   0.0
+Fe	0.6666666666666666   0.0   0.0
+Fe	0.6666666666666666   0.16666666666666666   0.0
+Mn	0.6666666666666666   0.3333333333333333   0.0
+Fe	0.6666666666666666   0.5   0.0
+Mn	0.6666666666666666   0.6666666666666666   0.0
+Mn	0.6666666666666666   0.8333333333333334   0.0
+Fe	0.8333333333333334   0.0   0.0
+Fe	0.8333333333333334   0.16666666666666666   0.0
+Fe	0.8333333333333334   0.3333333333333333   0.0
+Fe	0.8333333333333334   0.5   0.0
+Mn	0.8333333333333334   0.6666666666666666   0.0
+Mn	0.8333333333333334   0.8333333333333334   0.0
+
+Acell final
+-------------
+6.0   0.0   0.0
+0.0   6.0   0.0
+0.0   0.0   100.0
+
+
+AVERAGE STRUCTURE (entire supercell, avg over steps, crystal coordinates)
+-------------
+X 	0.0   0.0   0.0
+X 	0.0   0.16666666666666663   0.0
+X 	0.0   0.33333333333333326   0.0
+X 	0.0   0.5   0.0
+X 	0.0   0.6666666666666665   0.0
+X 	0.0   0.8333333333333335   0.0
+X 	0.16666666666666663   0.0   0.0
+X 	0.16666666666666663   0.16666666666666663   0.0
+X 	0.16666666666666663   0.33333333333333326   0.0
+X 	0.16666666666666663   0.5   0.0
+X 	0.16666666666666663   0.6666666666666665   0.0
+X 	0.16666666666666663   0.8333333333333335   0.0
+X 	0.33333333333333326   0.0   0.0
+X 	0.33333333333333326   0.16666666666666663   0.0
+X 	0.33333333333333326   0.33333333333333326   0.0
+X 	0.33333333333333326   0.5   0.0
+X 	0.33333333333333326   0.6666666666666665   0.0
+X 	0.33333333333333326   0.8333333333333335   0.0
+X 	0.5   0.0   0.0
+X 	0.5   0.16666666666666663   0.0
+X 	0.5   0.33333333333333326   0.0
+X 	0.5   0.5   0.0
+X 	0.5   0.6666666666666665   0.0
+X 	0.5   0.8333333333333335   0.0
+X 	0.6666666666666665   0.0   0.0
+X 	0.6666666666666665   0.16666666666666663   0.0
+X 	0.6666666666666665   0.33333333333333326   0.0
+X 	0.6666666666666665   0.5   0.0
+X 	0.6666666666666665   0.6666666666666665   0.0
+X 	0.6666666666666665   0.8333333333333335   0.0
+X 	0.8333333333333335   0.0   0.0
+X 	0.8333333333333335   0.16666666666666663   0.0
+X 	0.8333333333333335   0.33333333333333326   0.0
+X 	0.8333333333333335   0.5   0.0
+X 	0.8333333333333335   0.6666666666666665   0.0
+X 	0.8333333333333335   0.8333333333333335   0.0
+
+Acell avg over steps
+-------------
+6.0   0.0   0.0
+0.0   6.0   0.0
+0.0   0.0   100.0
+--
+
+
+
+All quantities are the fixed cell (fixed to starting strain) versions
+
+Mean Cluster (cluster sites only) 0.0457777777778
+std Cluster, avg over cells 
+[0.99835679]
+Mean over steps of |Cluster| (cluster sites only) 0.47688888888888886
+
+
+Mean_cluster: 0.04577777777777778
+Mean_abs_cluster: 0.47688888888888886
+Mean_staggered_cluster: -0.0028888888888888888
+Mean_abs_staggered_cluster: 0.09666666666666666
+
+
+Mean_cluster squared: 0.29699382716049383
+Mean_staggered_cluster squared: 0.015746913580246914
+
+
+Chi: 1.2047192805861622
+Chi staggered: 0.11086801314301367
+Chi uses bohr_magneton = 1.41421356237 and unit spin magnitude
+
+Cumulant: 0.41328746371125746
+Cumulant_staggered: -0.05279572987122316
+
+Mean Energy: 38.762399422395255
+Heat Capacity: 21.455250933994048
+Std Energy 13.618382455815048
+------------------------------------------------------------
+Energy Autocorr
+step autocorr
+---------------
+
+0	0.9999999999999999
+2	0.46442689287569605
+4	0.24878762102484092
+6	0.13161358654570013
+8	0.059774713264539536
+10	0.017472806950016836
+12	0.018728672839468146
+14	0.0019204812123417157
+16	0.006578917027404354
+18	-0.005576496902389224
+20	-0.008254315113252322
+22	-0.022033535701504972
+24	-0.02439866655959736
+26	-0.01766931785697631
+28	-0.02263931954545911
+30	-0.0002840544935558959
+32	-0.0033803658272199503
+34	0.01855025035766941
+36	0.0019159781757382493
+38	0.008188703485549136
+40	0.00854705590317202
+42	0.01607221475438776
+44	-0.0036047759978666796
+46	0.0032839411958883453
+48	0.006043444998711798
+50	0.005135109510733064
+52	0.01050821124272677
+54	0.02009755278412196
+56	0.009033950167446004
+58	0.0043205074909505575
+60	-0.004883133913260851
+62	-0.020920669764871076
+64	-0.03329455149970406
+66	-0.02811294251030463
+68	-0.026320291438375405
+70	0.006379167121027199
+72	0.021172562396248328
+74	0.0047240766682986645
+76	-0.0017104023972098236
+78	0.0025550445354148186
+80	0.007082554870987549
+82	0.0035895252816518703
+84	0.0008281751913071305
+86	-0.007168620638922231
+88	-0.019236908491211454
+90	-0.012822273976447333
+92	0.0021094607729121324
+94	-0.005124751518185792
+96	0.008053935653442224
+98	0.00629406362877364
+100	-0.002982329649288213
+102	0.012317477774246719
+104	0.023640095364888283
+106	-0.022652567848821265
+108	-0.028839818874191372
+110	-0.034569729247444246
+112	-0.023040585203205052
+114	-0.02311488044567142
+116	-0.022302338329761393
+118	-0.013911908646318605
+120	0.007390675932892479
+122	0.012107213996985243
+124	0.026276320023030167
+126	0.03202893581401363
+128	0.025581995307372814
+130	0.01648629904978993
+132	0.029262952719577923
+134	0.03021832066246363
+136	-0.007893878350909784
+138	-0.024199119514436113
+140	-0.021100116505243082
+142	-0.027452421556274958
+144	-0.03347446373320026
+146	-0.010506784343066624
+148	-0.02093425963981667
+150	-0.012795095410178165
+152	-0.01574464884109953
+154	-0.01592935289184844
+156	-0.023464834630627374
+158	-0.012382835245964027
+160	-0.03020645660134693
+162	-0.01835640618812412
+164	-0.014560868574716739
+166	-0.008758631483699346
+168	-0.004200887554511647
+170	0.004997476250026886
+172	0.010679435876233791
+174	0.020048028008260034
+176	0.002087722153300115
+178	-0.011380869002264059
+180	0.009970534526438549
+182	0.011726944679705713
+184	0.00767768351974703
+186	-0.006523434957061747
+188	-0.014615907630761893
+190	-0.01638484854087021
+192	0.0035635218571386947
+194	-0.00834498482105371
+196	-0.0014242579212970716
+198	-0.011653768367601756
+200	0.0015904117592369434
+202	0.009902413059112778
+204	0.002000878847978182
+206	-0.010635725872965839
+208	0.004865199688809878
+210	0.0006179987751473865
+212	-0.0022981529902502875
+214	-0.004347574629075977
+216	-0.0038234435676998226
+218	0.008860662247076856
+220	-0.0056342947410122236
+222	-0.0007324171474919501
+224	0.010549890666974732
+226	0.02532760664136004
+228	0.03075768990773832
+230	0.02044617812692134
+232	-0.008901070579239978
+234	-0.015525848748567625
+236	-0.011992250508552446
+238	-0.0033294482248180162
+240	-0.008765698531157648
+242	0.00860184459573476
+244	0.0030946009252297776
+246	-0.003723721208026621
+248	0.009494976499767854
+250	-0.0040564481529322925
+252	-0.0029393440435540913
+254	0.02101916996626011
+256	0.02123856205629825
+258	0.021686468950552457
+260	0.02271683089836009
+262	0.024467264699174356
+264	0.02009693254635141
+266	0.030012340917470928
+268	0.01311401948390634
+270	0.012195813126039203
+272	0.024631600203195103
+274	0.018742531538328715
+276	0.001678501929262414
+278	0.012277923690630112
+280	0.027412796342651792
+282	0.020139088655186252
+284	0.03722171061333951
+286	0.020092200663949282
+288	0.005606733827551697
+290	0.008685444283988389
+292	-0.0049311035932043884
+294	-0.016951198633249537
+296	-0.015457343553417883
+298	-0.015694276396595055
+300	-0.0031765533123666893
+302	-0.0016454754664956884
+304	0.004244675246830841
+306	-0.00296404188380117
+308	0.0061092146393409395
+310	-0.0013491106161227008
+312	-0.002936539896497009
+314	-0.015301733223936036
+316	-0.03615585194435094
+318	-0.03490124645962507
+320	-0.012524497064911856
+322	0.0034290624502764894
+324	0.011599389416270013
+326	0.016909156875051217
+328	0.035882854541225785
+330	0.03786446561726661
+332	0.030751644309411574
+334	0.01924467776796489
+336	0.016604278721640796
+338	0.02779113665618194
+340	0.03758768286588744
+342	0.031102575113677033
+344	0.014104658996904745
+346	0.01283693819171706
+348	-0.01668406824809823
+350	-0.015455764879670078
+352	-0.018371534970111812
+354	-0.002279627648115127
+356	-0.014466361993288933
+358	-0.004194350349495089
+360	-0.01752871538612314
+362	-0.018925868214114783
+364	-0.01926863929805176
+366	-0.03748187785814766
+368	-0.037532901689381996
+370	-0.026151660208957154
+372	-0.0236033922595071
+374	-0.015183047118401339
+376	0.002505119740597286
+378	-0.003883850075998487
+380	0.007467644877870161
+382	0.0013988228824490991
+384	-0.018664155458178004
+386	-0.016038196765014032
+388	-0.022779715022562576
+390	-0.017620263837624495
+392	-0.0026061231337832615
+394	0.013468671926360871
+396	0.002109158073381352
+398	0.003513133738464024
+400	0.00568266557453934
+402	0.019206299478130514
+404	0.009425783201662841
+406	0.010321971304957565
+408	-0.006163879672891951
+410	0.003414845154995366
+412	0.013270435981227388
+414	0.016678401246785643
+416	0.0015836548613367093
+418	-0.012688939634918838
+420	-0.008789401353780273
+422	0.012609432396847762
+424	0.030196857331017585
+426	0.02195977312489674
+428	0.014790504527317524
+430	0.015510248259306718
+432	0.007665351288283996
+434	0.003475976191937081
+436	0.0018502189818233035
+438	-0.006149115678265081
+440	-0.013451800784946873
+442	-0.016586704070671653
+444	-0.015240594926816689
+446	-0.032838851376170375
+448	-0.03132477002475891
+450	-0.030939324631681708
+452	-0.006106459728806099
+454	0.011259157886877855
+456	0.018287333239304957
+458	0.016081955579513994
+460	0.02667293044542964
+462	0.02259708351462503
+464	0.011919550236996595
+466	0.024045428636294646
+468	0.008805685997429586
+470	0.016973023535357106
+472	0.014634733532897211
+474	0.02314635005595787
+476	0.01614559223118686
+478	0.011772893350819356
+480	0.005146365176648264
+482	0.009314457806007252
+484	-0.0002621781717312853
+486	-0.0045963531669411485
+488	-0.03772258377258689
+490	-0.02148603569569301
+492	-0.005092018963080032
+494	-0.008869867691173202
+496	-0.01762420776137084
+498	-0.03514740221643398
+500	-0.0031417821835062914
+502	-0.010122250246111738
+504	-0.006693797844599111
+506	-0.012616263324865075
+508	-0.0051805700740555445
+510	-0.017571714039400867
+512	-0.02076038290387094
+514	-0.0281736751684309
+516	-0.018521466393083868
+518	-0.026672366600857818
+520	-0.01676946695313944
+522	-0.00364037630074848
+524	0.003091249273323028
+526	0.00659467256015273
+528	0.005723168702816671
+530	0.007298332900503563
+532	-0.004662071554000187
+534	-0.012823114663356927
+536	-0.010478494693268038
+538	-0.00783250943057975
+540	-0.021521126692962623
+542	-0.031183104850745488
+544	-0.02677322732609487
+546	-0.009975107396675655
+548	0.007045212740823095
+550	0.0178057288908467
+552	0.02177265310825314
+554	0.03187290848237673
+556	0.04452368398345654
+558	0.01920964869133984
+560	-0.0012970213680908631
+562	-0.006783173394037761
+564	-0.0008970139585644162
+566	0.007128615736100692
+568	0.0016239106796799522
+570	0.0025286009190020075
+572	-0.00016220161216490636
+574	-0.010256151100483477
+576	-0.003642692348628876
+578	-0.0005401073219605846
+580	-0.007772244704210262
+582	-0.012704708391039522
+584	-0.011054299953998835
+586	-0.0014735968246347932
+588	0.021599637406925328
+590	0.014333553962696756
+592	0.0020702297466347087
+594	0.0030116494118810895
+596	-0.019471718654354965
+598	-0.02120227482800887
+600	-0.029916584739974685
+602	-0.01700903674249618
+604	-0.01037786238493227
+606	-0.0005316598818142468
+608	-0.00276624273216754
+610	-0.00885780969326042
+612	-0.005941223825893269
+614	-0.012608936992028679
+616	-0.033717862035675505
+618	-0.02793692045554914
+620	-0.014481094267658147
+622	-0.011466346635984524
+624	0.002136275440610077
+626	0.0030371788835120584
+628	0.006355361661602232
+630	-0.0024836764885471222
+632	-0.01690922021441056
+634	-0.0025597990810135277
+636	0.007379690535078156
+638	-0.0037945352778687813
+640	0.005275421441847054
+642	0.01395083574887558
+644	0.0011677914418694554
+646	-0.005170738815604561
+648	-0.023449417808908978
+650	-0.017735123216770815
+652	-0.041718306263450244
+654	-0.021486633234480808
+656	0.003717751466220643
+658	0.011334720282931577
+660	0.010637746948837793
+662	0.02520123757339731
+664	0.013983343962041636
+666	-0.005085640450084236
+668	-0.014486438492480103
+670	0.0003879018595986773
+672	-0.002515797542850795
+674	0.017137832347634736
+676	0.015049108258137453
+678	0.007756075633849538
+680	-0.018325181355419874
+682	-0.03217732173270795
+684	-0.015810011257221784
+686	-0.009797470774178096
+688	-0.021039413227148807
+690	-0.015838954832839466
+692	-0.028493043681009054
+694	-0.015518477546515044
+696	-0.010393832547702193
+698	-0.017765316695951654
+700	-0.02281784701031386
+702	-0.016653083306927052
+704	-0.009670449531987224
+706	-0.006435395299472424
+708	-0.0033897143373775086
+710	0.004251520694579938
+712	0.023226954544664953
+714	0.023038223235157397
+716	0.02288343986796921
+718	3.126203759055115e-05
+720	-0.017466818261971787
+722	-0.017066137501374767
+724	-0.011724527650231758
+726	-0.02038056111900199
+728	-0.015380634326994908
+730	-0.017808655517381585
+732	-0.015913615521322855
+734	-0.026038537867200794
+736	-0.02891205204205405
+738	-0.0118489325067035
+740	0.0010492706404524193
+742	-0.0014873974874292136
+744	-0.011973611608998685
+746	-0.021627451033929948
+748	-0.022798901770280995
+750	-0.011179235896000306
+752	0.00019252406670438194
+754	-0.0024096777331897006
+756	-0.0030956158911610715
+758	-0.003454120614999132
+760	-0.0026589295800133867
+762	4.259459894624226e-06
+764	-0.00108017163503244
+766	0.005273430262043611
+768	-0.006663373655589064
+770	-0.021819796887397862
+772	-0.03312159673071061
+774	-0.02910167165731738
+776	-0.022410182272914216
+778	-0.027511920631267544
+780	-0.02341193260801106
+782	-0.018298498633695738
+784	-0.007055377349672436
+786	-0.004378040766441267
+788	-0.005520480238691129
+790	-0.016259203799387577
+792	-0.005312847112457105
+794	0.01091621696840959
+796	0.02186949538061644
+798	0.022823684536064846
+800	3.8371794470854314e-05
+802	-0.010128786418831836
+804	-0.021272437895331897
+806	-0.016896293225647528
+808	-0.010900999651813261
+810	-0.0016696808295434773
+812	-0.004459102153452608
+814	-0.0026286345062237356
+816	-0.001864740274851515
+818	-0.00902798814329343
+820	0.0047949442180235495
+822	-0.01966950646837518
+824	-0.01979840727668068
+826	-0.021644417919548815
+828	-0.018791688878993663
+830	-0.006351657631571082
+832	0.005071606133606486
+834	0.009393229214443317
+836	0.007908209598784662
+838	0.012657822492525199
+840	0.004632927510750674
+842	-0.020195373040884257
+844	-0.01611190668912257
+846	-0.003808347162666056
+848	0.006505453250339159
+850	-0.0017627989579010403
+852	-0.0036238176128897863
+854	0.010902928125656986
+856	0.01573897600993118
+858	0.012703857583322771
+860	-0.0071002777915038975
+862	-0.01191275670894444
+864	-0.010649533404225687
+866	-0.0009289215239989539
+868	-0.008114724647766297
+870	-0.020358128216063698
+872	-0.015766367388472192
+874	-0.026165979172379585
+876	-0.02720134188102875
+878	-0.020507574294572388
+880	-0.007202380819676527
+882	-0.012012425004121556
+884	-0.0029497032257072174
+886	0.00469755141212012
+888	-0.011067120436754167
+890	-0.007406285559528389
+892	0.008348239292831995
+894	-0.0017235591533657773
+896	0.0012337948917031001
+898	0.0344424429542166
+900	0.021513586422838137
+902	0.02169008749681922
+904	0.01276160734064573
+906	-0.001818331590372887
+908	-0.039123425073108245
+910	-0.04198996078038736
+912	-0.03720472493610316
+914	-0.028472121767699917
+916	-0.0053443856229079935
+918	0.005656979303621796
+920	-0.002893999848033011
+922	-0.003160797037705355
+924	-0.00796144790297336
+926	-0.012378465289998218
+928	-0.026582412376329696
+930	-0.016607647592256806
+932	-0.022976961603896298
+934	-0.021678518044661955
+936	-0.012683626749071907
+938	-0.007353804511671045
+940	-0.008258549786206628
+942	0.0036101855763549123
+944	-0.003366080029881605
+946	-0.031014352495178213
+948	-0.0371515438972772
+950	-0.04266145956097472
+952	-0.024113513231164764
+954	-0.04979441024872192
+956	-0.04694696874821542
+958	-0.04498302974086487
+960	-0.04629163562522494
+962	-0.047245546490639986
+964	-0.043744854688830576
+966	-0.013882444705117881
+968	0.0076695852518623535
+970	-0.004974094347103296
+972	-0.013437162271028322
+974	-0.010446899394665064
+976	-0.012124257294031104
+978	0.0038568728590856116
+980	0.01771448107729826
+982	0.023841083843311118
+984	0.020950308555763252
+986	0.018424886588540145
+988	0.022452145851986766
+990	0.01958975571946819
+992	-0.012349970095635878
+994	-0.01901370682938501
+996	-0.004652417348909649
+998	-0.004289678218060257
+---------------
+
+Energy autocorr drops below 0.02 at 10
+So there are approx. 1000.0 indept. samples (in energy)
+The energy error bars are ~ +/- 0.4306510660765292
+or 0.011962529613236923 per atom
+
+
+end mc analysis
+
+-----------------------------
+
+TIME MC post processing 0.840456008911
+DONE MONTE CARLO

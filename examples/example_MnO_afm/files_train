@@ -1,0 +1,40 @@
+data/mno_afmG.scf.in.fmcell.out
+data/mno_afmG.scf.in.out
+data/mno_afm.in.222.01.out
+data/mno_afm.in.222.02.out
+data/mno_afm.in.222.03.out
+data/mno_fm.in.sx2.out
+data/mno_fm.in.sx.out
+data/mno_fm.in.sxy2.out
+data/mno_fm.in.sxy.out
+data/mno_fm.in.up.up.out
+data/mno_fm.in.vol2.out
+data/mno_fm.in.vol.out
+data/mno_fm.scf.in.k.0.01.out
+data/mno_fm.scf.in.k.0.02.out
+data/mno_fm.scf.in.k.1.01.out
+data/mno_fm.scf.in.k.1.02.out
+data/mno_fm.scf.in.k.2.01.out
+data/mno_fm.scf.in.k.2.02.out
+data/mno_fm.scf.in.k.3.01.out
+data/mno_fm.scf.in.k.3.02.out
+data/mno_fm.scf.in.k.4.01.out
+data/mno_fm.scf.in.k.4.02.out
+data/mno_fm.scf.in.k.5.01.out
+data/mno_fm.scf.in.k.5.02.out
+data/mno_fm.scf.in.k.6.01.out
+data/mno_fm.scf.in.k.6.02.out
+data/mno_fm.scf.in.k.7.01.out
+data/mno_fm.scf.in.k.7.02.out
+data/mno_fm.scf.in.super.222.01.out
+data/mno_fm.scf.in.super.222.02.out
+data/mno_fm.scf.in.super.222.03.out
+data/mno_fm.scf.in.super.222.sub.01.out
+data/mno_fm.scf.in.super.222.sub.02.out
+data/mno_fm.scf.in.super.222.sub.03.out
+data/mno_fm.scf.in.super.222.sub_frozen.01.out
+data/mno_fm.scf.in.super.222.sub_frozen.02.out
+data/mno_fm.scf.in.super.222.sub_frozen.03.out
+data/mno_fm.scf.in.super.444.01.out 10
+data/mno_fm.scf.in.super.444.02.out 10
+data/mno_fm.scf.in.super.444.flip1.out 10

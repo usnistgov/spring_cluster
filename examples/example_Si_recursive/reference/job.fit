@@ -1,0 +1,30 @@
+#!/bin/bash
+#$ -N INPUT
+
+
+# run from directory where this script is
+
+PATHold=$PATH
+PATH=/site/x86/anaconda-1.8/anaconda/bin:$PATH
+unset PYTHONPATH
+
+PYTHONPATH=$PYTHONPATH:/data/kfg/codes/fitting_model_duo20:
+set PYTHONPATH
+
+PATH=$PATH:/data/kfg/codes/fitting_model_duo20:
+
+OMP_NUM_THREADS=16
+export OMP_NUM_THREADS
+
+echo PATH
+echo $PATH
+echo
+echo PYTHONPATH
+echo $PYTHONPATH
+echo
+
+export PYTHONPATH
+
+date
+python run_si_quartic_recursive.py > fitting_recursive.out
+date

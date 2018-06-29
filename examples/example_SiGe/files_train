@@ -1,0 +1,40 @@
+data/Ge_diamond.scf.in.out
+data/Ge_diamond.scf.in.super.222.x001.out
+data/Ge_diamond.scf.in.super.444.01.out
+data/Ge_diamond.scf.in.super.444.02.out
+data/Ge_diamond.scf.in.super.444.a.01.out
+data/Ge_diamond.scf.in.super.444.a.02.out
+data/Ge_diamond.scf.in.super.444.Si.01.out
+data/Ge_diamond.scf.in.super.444.SiSi.01.out
+data/Si_diamond.scf.in.alat.5.177740474200000.out 10
+data/Si_diamond.scf.in.super.222.x001.out
+data/Si_diamond.scf.in.super.222.x008.out
+data/Si_diamond.scf.in.super.222.xy001.out
+data/Si_diamond.scf.in.super.222.xy010.out
+data/Si_diamond.scf.in.super.222.xyz001.out
+data/Si_diamond.scf.in.super.444.01.out
+data/Si_diamond.scf.in.super.444.02.out
+data/Si_diamond.scf.in.super.444.a.01.out
+data/Si_diamond.scf.in.super.444.a.02.out
+data/Si_diamond.scf.in.super.444.Ge.01.out
+data/Si_diamond.scf.in.super.444.GeGe.01.out
+data/Si_diamond.scf.in.super.444.Ge.out
+data/SiGe_zns.scf.in.out
+data/SiGe_zns.scf.in.super.444.01.out
+data/SiGe_zns.scf.in.super.444.02.out
+data/SiGe_zns.scf.in.super.444.a.01.out
+data/SiGe_zns.scf.in.super.444.a.02.out
+data/SiGe_zns.scf.in.super.444.mix.01.out
+data/SiGe_zns.scf.in.super.444.mix.out
+data/SiGe_zns.scf.in.super.444.b.01.out
+data/SiGe_zns.scf.in.super.444.b.02.out
+data/SiGe_zns.scf.in.super.444.b.03.out
+data/SiGe_zns.scf.in.super.444.b.04.out
+data/Ge_diamond.scf.in.alat.5.314836760800000.out 10
+data/Si_diamond.scf.in.sx.out
+data/Si_diamond.scf.in.sxsy.out
+data/Si_diamond.scf.in.sx.x.out
+data/Si_diamond.scf.in.sxy.out
+data/Ge_diamond.scf.in.sx.out
+data/Ge_diamond.scf.in.sxy.out
+data/Ge_diamond.scf.in.alat.5.381977665092000.out 50

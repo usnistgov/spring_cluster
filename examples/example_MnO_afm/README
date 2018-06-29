@@ -1,0 +1,11 @@
+MnO rocksalt example, treating magnetic + structural degrees of freedom.
+
+We expand around the cubic rocksalt FM phase. The ground state is AFM rhombohedral rocksalt.
+
+The spin expansion only can occur at even orders, due to up to down spin symmetry.
+
+Currently the code only fits collinear spins, treating them like Ising variables. It can run 
+Monte Carlo treating the spins like classical Heisenberg spins (fixed unit magnitude, s1 dot s2 vector interactions) or Ising variables (1 or -1).
+
+
+

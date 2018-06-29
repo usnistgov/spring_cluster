@@ -1,0 +1,47 @@
+&control
+calculation = 'scf'
+    restart_mode='from_scratch',
+prefix = 'PREFIX'
+    tstress = .true.
+    tprnfor = .true.
+    pseudo_dir = '/users/kfg/psuedo/gbrv_1.5/',
+  outdir = '/tmp/DIR'
+    disk_io = 'low'
+    wf_collect = .true.
+    verbosity = 'low'    
+ /
+&system
+    ibrav=  0, 
+    nat=  1, 
+    ntyp= 1,
+ecutwfc = 40,
+    ecutrho = 200,
+occupations = "smearing",
+degauss = 0.01
+    lda_plus_u = .true.,Hubbard_U(1) = 3,Hubbard_U(2) = 3,
+nspin = 2
+    starting_magnetization(1) = 1.0
+ /
+&electrons
+    diagonalization='david'
+    mixing_mode = 'local-TF'
+    mixing_beta = 0.3
+conv_thr = 1d-10
+ /
+&ions
+  ion_dynamics='bfgs',
+/
+&cell
+ cell_dynamics = 'bfgs'
+ cell_dofree = 'xy'
+/
+ATOMIC_SPECIES
+Mn 15.9994 mn.pbesol.UPF
+ATOMIC_POSITIONS crystal
+Mn 0.000000000 0.000000000 0
+CELL_PARAMETERS bohr
+   1.0   0.000000000   0.000000000
+   0.000000000   1.0   0.000000000
+   0.000000000   0.000000000  100.000000000
+K_POINTS automatic
+1 1 1 0 0 0
