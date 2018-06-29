@@ -40,7 +40,7 @@ After installing the necessary libraries, the necessary compilation command is
 
 which simply goes into the src/ directory and runs make
 
-To add the python directory to your path, please run
+To add the python directory to your path, please run:
 
    cd src
    PYTHONPATH=$PYTHONPATH:`pwd`:
