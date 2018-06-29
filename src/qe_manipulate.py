@@ -12,7 +12,7 @@ from random import randint
 from random import shuffle
 
 try:
-    from atoms import Atoms
+    from atoms_kfg import Atoms
 except ImportError: 
     print "Atoms class is necessary."
     print "You can use atoms.py in the test/ directory."
