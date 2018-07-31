@@ -6,9 +6,10 @@ import numpy as np
 class myunittest(unittest.TestCase):
     @classmethod
     def setUpClass(self):
-    #   def setUp(self):
+        #   def setUp(self):
 
         self.mysc = spring_cluster('testing_files/fake.in', [1,1,1])
+
         self.mysc.load_hs_output('testing_files/fake.out')
         self.mysc.myphi.useasr = True
 
