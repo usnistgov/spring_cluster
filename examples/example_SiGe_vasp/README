@@ -1,0 +1,9 @@
+run_sige_cubic.py:
+	This examples fits and tests a Si_(1-x)Ge_x  model using VASP inputs
+
+run_mgo_vasp.py:
+	This example shows how to load a dielectric constant from a VASP OUTCAR
+
+
+
+

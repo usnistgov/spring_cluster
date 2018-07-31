@@ -1,0 +1,13 @@
+
+ISMEAR = 0; SIGMA = 0.05;
+LSORBIT       = .FALSE.
+
+EDIFF = 1e-7
+
+PREC = Accurate
+ENCUT = 350
+
+IBRION = 0
+
+ISIF = 2
+

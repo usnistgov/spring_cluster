@@ -17,7 +17,7 @@
 
 import numpy as np
 
-class Atoms:
+class Atoms(object):
     """Atoms class compatible with the ASE Atoms class
     Only the necessary stuffs to phonpy are implemented. """
     
@@ -29,7 +29,10 @@ class Atoms:
                  magmoms=None,
                  scaled_positions=None,
                  cell=None,
-                 pbc=None):
+                 pbc=None,
+                 forces=None,
+                 stress=None,
+                 energy=None):
 
         # cell
         if cell is None:
@@ -75,7 +78,20 @@ class Atoms:
         if self.symbols and (self.masses is not None):
             self.symbols_to_masses()
 
+        if forces is None and self.scaled_positions is not None:
+            self.forces = np.zeros((self.scaled_positions.shape[0],3),dtype=float)
+        else:
+            self.forces = forces
 
+        if stress is None:
+            self.stress = np.zeros((3,3),dtype=float)
+        else:
+            self.stress = stress
+        if energy is None:
+            energy = 0.0
+        else:
+            self.energy = energy
+            
     def set_cell(self, cell):
         self.cell = np.array(cell, dtype=float)
 
@@ -172,6 +188,18 @@ class Atoms:
         print 'atoms'
         print self.symbols
         print '--------'
+
+#kfg added
+    def return_struct(self, return_kpoints=True):
+        if return_kpoints:
+            return self.cell, set(self.symbols), self.scaled_positions, self.symbols, self.masses, [1,1,1]
+        else:
+            return self.cell, set(self.symbols), self.scaled_positions, self.symbols, self.masses            
+    def return_force_stress(self):
+        return self.cell, self.symbols, self.scaled_positions, self.forces, self.stress, self.energy
+
+    def return_force_stress_list(self):
+        return [self.cell], [self.symbols], [self.scaled_positions], [self.forces], [self.stress], [self.energy]
 
 atom_data = [ 
     [  0, "X", "X", 0], # 0

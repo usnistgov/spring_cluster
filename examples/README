@@ -16,5 +16,13 @@ example_Si_recursive : Fits a higher order model for Si, and then attempts to im
                        generating new structures with Monte Carlo sampling at 500K, doing new DFT 
                        calculations, and incorporating the new data into an improved model all automatically
 
-example_tools  :       How to use the generation tools for quickly making QE inputfiles that are useful in fitting
+example_tools  :       How to use the generation tools for quickly making QE inputfiles that are useful in fitting. Most of the commands
+	       	       also work naturally with VASP POSCARs
+
+example_SiGe_vasp :    Shows how to run an example using VASP POSCARS and OUTCARS. There is very little change from the user's propective
+
+example_othercodes :   Shows how to run a fake example using data from an unsupported first princples code or other source of
+		       energies, forces, and stresses. if you make a full interface for another code, let me know.
+
+
 

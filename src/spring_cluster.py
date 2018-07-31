@@ -36,11 +36,15 @@ class spring_cluster:
     else:
       print
       print "Initializing springconstants with file"
-      print "File " + hs_file + ' ' + str(supercell)
-      hs = open(hs_file,'r')
-      self.myphi = phi(hs,supercell)      
-      hs.close()
+      if type(hs_file) is str:
+        print "File " + hs_file + ' ' + str(supercell)
+        hs = open(hs_file,'r')
+        self.myphi = phi(hs,supercell)      
+        hs.close()
+      else:
+        self.myphi = phi(hs_file,supercell)      
 
+        
 
     self.myphi.useewald = False
     self.supercell = supercell
@@ -64,7 +68,12 @@ class spring_cluster:
     if outputfile is not None:
       self.load_hs_output(outputfile)
 
-    self.relax_load_freq=6 #by default load every 3rd structure from a relaxation
+    self.relax_load_freq=6 #by default load every 6th structure from a relaxation
+
+  def set_relax_load_freq(self, num):
+    self.relax_load_freq=num
+    self.myphi.relax_load_freq=num
+    
 
   def set_energy_differences(self, d=[]):
     self.myphi.energy_differences = d
@@ -150,8 +159,6 @@ class spring_cluster:
 
   def print_current_options(self):
 
-    print 'num 21 spring cluster'
-
     print 
     print
     print 'PRINTING CURRENT OPTIONS'
@@ -160,11 +167,13 @@ class spring_cluster:
 
     print
     print 'dims ' + str(self.dims)
+    print
     print 'cutoffs'
     for d in self.dims:
       dh = self.dim_hash(d)
       print str(d) + '\t' + str(self.cutoffs[dh])
 
+    print
     print 'hs file ' + str(self.hs_file)
     if self.fitting_filelist != "":
       print 'fitting file list ' + str(self.fitting_filelist)
@@ -210,9 +219,11 @@ class spring_cluster:
       print 'Not using Born effective charges'
 
     if self.myphi.useenergy:
+      print
       print 'Using energy in fitting'
       print ' weight is ' + str(self.myphi.energy_weight)
     else:
+      print
       print 'Not using energy in fitting'
 
     if self.myphi.usestress:
@@ -229,19 +240,25 @@ class spring_cluster:
     #get the energy for the reference structure from an output file
     self.myphi.load_hs_output(hs_file_out)
 
-  def load_zeff(self, fc):
+  def load_zeff(self, fc=None, dielectric=None, zeff=None):
     #get the Born effective charges and dielectric constants from a QE .fc file
-    if fc == 'none' or fc is None:
-      self.myphi.useewald = False
-      return
+    if fc is None or fc.lower() == 'none':
+      if dielectric is None:
+        self.myphi.useewald = False
+        print 'turning OFF dielectric constant / Born effective charges'
+        return
 
     self.zeff_file = fc
     self.myphi.useewald = True
-    self.myphi.load_harmonic_new(fc)
+    self.myphi.load_harmonic_new(filename=fc, asr=True, zero=True, stringinput=False, dielectric=dielectric, zeff=zeff)
 
-  def load_filelist(self, file_list, add=False):
+  def load_filelist(self, file_list, add=False, relax_load_freq=None):
     #load data from a list of output files
-    
+
+    if relax_load_freq is not None:
+      self.set_relax_load_freq(relax_load_freq)
+
+      
     self.fitting_filelist = file_list
     
     if type(file_list) is str:
@@ -471,10 +488,10 @@ class spring_cluster:
         choose_rfe='max-median'
         print 'Invalid choose_rfe variable, using max-median'
       self.myphi.rfe_type = choose_rfe
-      if self.myphi.num_keep < 1:
+      if self.myphi.num_keep > 1:
         print 'Using recursive feature elimination with ',self.myphi.num_keep,' features'
       else:
-        print 'Using recursive feature elimination with ',self.myphi.rfe_type
+        print 'Using recursive feature elimination using ',self.myphi.rfe_type
         
     elif method.lower() == 'lasso':
       self.myphi.regression_method = 'lasso'
@@ -845,6 +862,7 @@ class spring_cluster:
 
   def calc_energy_qe_file(self,filename,cell=[],ref=None):
 
+
       A,types,pos,forces,stress,energy = load_output(filename) #only gets the last entry from a relaxation
       energy,forces, stress, energy_ref, forces_ref, stress_ref = self.calc_energy_qe_output(A,types,pos,forces,stress,energy, cell=cell, ref=ref)
 
@@ -972,15 +990,20 @@ class spring_cluster:
     for line in f:
       print
 
-      ls = line.split()
-      if len(ls) == 0:
-        continue
-      if ls[0][0] == '#':
-        continue
-
+      if type(line) is str:
+        ls = line.split()
+        if len(ls) == 0:
+          continue
+        if ls[0][0] == '#':
+          continue
+      else:
+        if line is not list:
+          ls = [line]
+        else:
+          ls = line
 
       print '---------------------------------'
-      print str(N) + ' Calculating energy for ' + str(ls)
+      print str(N) + ' Calculating energy for ' ,ls
 
       correction = 0.0
       if len(ls) == 3:

@@ -1,0 +1,13 @@
+#!/bin/bash
+#$ -N VASP
+
+
+# run from directory where this script is
+
+
+PROCS=16
+current=`pwd`
+
+VASP_COMMAND="mpirun -np $PROCS /users/kfg/codes/vasp/vasp_ncl "
+
+$VASP_COMMAND 

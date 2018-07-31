@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH --partition rack2 # -p, partition
+#SBATCH --nodes=1         # -N, total number of machines
+#SBATCH --ntasks=16       # -n, 64 MPI ranks per rack6 node
+#SBATCH -J vvv                   
+
+
+# run from directory where this script is
+
+
+PROCS=16
+current=`pwd`
+
+VASP_COMMAND="/usr/local/bin/mpirun -np $PROCS /users/kfg/codes/vasp/vasp_std "
+
+$VASP_COMMAND 

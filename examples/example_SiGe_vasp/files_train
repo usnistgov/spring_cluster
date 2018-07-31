@@ -1,0 +1,13 @@
+./data/highsym/OUTCAR
+./data/highsym_relax/OUTCAR
+./data/highsym_scf/OUTCAR
+./data/dir.POSCAR.super.333.01/OUTCAR
+./data/dir.POSCAR.super.333.02/OUTCAR
+./data/dir.POSCAR.super.333.03/OUTCAR
+./data/dir.POSCAR.super.mix.333.01/OUTCAR
+./data/dir.POSCAR.super.mix.333.02/OUTCAR
+./data/dir.POSCAR.super.mix.333.03/OUTCAR
+./data/dir.POSCAR.super.mixB.333.01/OUTCAR
+./data/dir.POSCAR.super.mixB.333.02/OUTCAR
+./data/dir.POSCAR.super.mixB.333.03/OUTCAR
+./data/singlege_relax/OUTCAR

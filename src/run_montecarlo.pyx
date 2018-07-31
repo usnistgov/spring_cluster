@@ -18,6 +18,8 @@ from montecarlo_energy2_parallel import montecarlo_energy
 from montecarlo_strain2_parallel import montecarlo_strain
 from montecarlo_cluster3_parallel import montecarlo_cluster
 
+import qe_manipulate_vasp
+
 #from montecarlo3_serial import montecarlo_serial
 #from montecarlo_energy2_serial import montecarlo_energy_serial
 #from montecarlo_strain2_serial import montecarlo_strain_serial
@@ -51,6 +53,29 @@ ctypedef np.int_t DTYPE_int_t
 
 def output_struct(phiobj, ncells, pos, strain, utypes, output_magnetic=True):
   #outputs structure in qe compatible format
+
+  
+  if phiobj.vasp_mode == True: #if in vasp mode, also output POSCAR.mc
+    eye=np.eye(3)
+    A=np.dot(phiobj.Acell_super, (eye + strain))
+    pos2 = np.zeros((phiobj.nat*ncells,3),dtype=float)
+    names = []
+    for s in range(ncells):
+      for at in range(phiobj.nat):
+        if at in phiobj.cluster_sites:
+          if phiobj.magnetic <= 1:
+            names.append(phiobj.reverse_types_dict[int(round(utypes[at,s]))].strip('1').strip('2').strip('3'))
+          elif phiobj.magnetic == 2:
+              names.append(phiobj.reverse_types_dict[int(round(utypes[at, s,4]))].strip('1').strip('2').strip('3'))
+        else:
+          names.append(phiobj.coords_type[at].strip('1').strip('2').strip('3'))
+    for s in range(ncells):
+      for at in range(phiobj.nat):
+        pos2[s*phiobj.nat + at,:] = pos[at, s, :]
+    qe_manipulate_vasp.cell_writer(pos2, A, set(names), names, [1,1,1], 'POSCAR.mc')
+    
+
+
   outstr = ''
 
   outstr +=  'ATOMIC_POSITIONS crystal\n'
@@ -66,7 +91,7 @@ def output_struct(phiobj, ncells, pos, strain, utypes, output_magnetic=True):
           else:
             outstr +=  phiobj.reverse_types_dict[int(round(utypes[at, s,4]))].strip('1').strip('2').strip('3') + '\t'  + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2]) +'\n'
       else:
-        outstr +=  phiobj.coords_type[at] + '\t' + str(pos[at, s,0]).strip('1').strip('2').strip('3') + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2])+'\n'
+        outstr +=  phiobj.coords_type[at].strip('1').strip('2').strip('3') + '\t' + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2])+'\n'
   outstr +=  'CELL_PARAMETERS bohr\n'
   A=np.dot(phiobj.Acell_super, (eye + strain))
   for i in range(3):

@@ -1,0 +1,163 @@
+loading
+
+Initializing springconstants with file
+STARTING UP MODEL
+
+
+Initializing
+Loading structure from qe input and performing setup...
+Symmetry info
+Nsymm 8
+International 99
+Equiv 2
+[0, 1]
+----------
+[0, 'C', 12.0107]
+[1, 'N', 14.0067]
+
+Set cutoff [0, 2] 0.10001
+
+
+PRINTING CURRENT OPTIONS
+------------------------
+supercell [1, 1, 1]
+
+dims [[0, 2]]
+
+cutoffs
+[0, 2]	0.10001
+
+hs file <atoms_kfg.Atoms object at 0x7fba5de82490>
+Have not done fitting yet.
+
+Using ASR
+
+Using normal least squares (keeping all features)
+
+
+
+Using Born effective charges
+ from None
+
+Using energy in fitting
+ weight is 0.1
+Using stress in fitting
+------------------------
+
+
+
+
+Starting Loading
+---------
+Starting new DFT file list
+
+Loading <atoms_kfg.Atoms object at 0x7fba5de824d0>
+calculating dipole f.c.s, adding to database
+get_hk
+dynmat self.nonan True
+adding cell  [1, 1, 1]          [1, 1, 1]
+
+---
+ncalc loaded:1
+---------
+
+------------------------
+STARTING FITTING PROCESS
+
+ss_max [1, 1, 1] 2
+
+
+
+Independent groups of atoms (atom numbers, distance, nbody): [0, 2]
+[0, 0]	0.0	1
+[0, 1]	0.1	2
+[1, 1]	0.0	1
+
+
+Number of independent force constants for each group:
+nind for [0, 2]: [2, 2, 2]
+ntotal_ind for [0, 2]: 6
+
+done setup_lsq for [0, 2]
+
+
+Doing actual lsq fitting now
+
+
+START DO_LSQ
+------------
+do_lsq, ncalc:  1
+
+UMAT out of total size 13, we keep 10, rest are duplicate entries
+number independent ASR constraints: 4
+sum_error rms : 0.00018369209729772495
+
+
+
+phi_ind_dim  [0, 2] 2
+
+[ 0.          9.60830652  0.         -9.60830652  0.          9.60830652]
+
+
+
+
+Non-zero phi elements 4 out of a possible 36 assuming no cutoff radii, etc
+
+
+DONE FITTING
+------------------------
+found dipole f.c.s in database
+testing
+
+Energy 0.000499995488938 0.0005 -4.51106249848e-09
+
+Forces
+[[ 0.         0.         0.0999991]
+ [ 0.         0.        -0.0999991]]
+
+reference force
+[[ 0.   0.   0.1]
+ [ 0.   0.  -0.1]]
+
+Stress
+
+[[ 2.43069406e-04  0.00000000e+00 -1.25103198e-21]
+ [ 0.00000000e+00  2.43069406e-04 -1.25103198e-21]
+ [ 0.00000000e+00  0.00000000e+00 -1.18044252e-02]]
+
+reference stress
+
+[[ 0.    0.    0.  ]
+ [ 0.    0.    0.  ]
+ [ 0.    0.   -0.01]]
+
+all done
+
+
+---------------------------------
+STARTING ENERGY CALCULATIONS FROM LIST of files names 
+[<atoms_kfg.Atoms object at 0x7fba5de824d0>]
+
+
+---------------------------------
+0 Calculating energy for  [<atoms_kfg.Atoms object at 0x7fba5de824d0>]
+found dipole f.c.s in database
+
+Energy 0.000499995488938	0.0005	-4.511062498481662e-09	 	<atoms_kfg.Atoms object at 0x7fba5de824d0> 0
+F abs 3.007374998822976e-07 0.03333333333333333	 	<atoms_kfg.Atoms object at 0x7fba5de824d0> 0
+F max abs 9.022124996538317e-07 0.1	 	<atoms_kfg.Atoms object at 0x7fba5de824d0> 0
+S abs 0.0022905640373717382 0.01	 	<atoms_kfg.Atoms object at 0x7fba5de824d0> 0
+
+Forces
+0.0   0.0   0.0999990977875
+0.0   0.0   -0.0999990977875
+
+Stress
+[[ 2.43069406e-04  0.00000000e+00 -1.25103198e-21]
+ [ 0.00000000e+00  2.43069406e-04 -1.25103198e-21]
+ [ 0.00000000e+00  0.00000000e+00 -1.18044252e-02]]
+
+
+N 1
+Energy average Deviation 4.511062498481662e-09	0.0005
+Forces average Deviation 3.007374998822976e-07	0.03333333333333333

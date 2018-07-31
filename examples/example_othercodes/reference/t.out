@@ -1,0 +1,154 @@
+loading
+
+Initializing springconstants with file
+STARTING UP MODEL
+
+
+Initializing
+Loading structure from qe input and performing setup...
+Symmetry info
+Nsymm 16
+International 123
+Equiv 1
+[0]
+----------
+
+Set cutoff [0, 2] 1.00001
+
+
+PRINTING CURRENT OPTIONS
+------------------------
+supercell [1, 1, 1]
+
+dims [[0, 2]]
+
+cutoffs
+[0, 2]	1.00001
+
+hs file <atoms_kfg.Atoms object at 0x7f4611f8b390>
+Have not done fitting yet.
+
+Using ASR
+
+Using normal least squares (keeping all features)
+
+
+
+Not using Born effective charges
+
+Using energy in fitting
+ weight is 0.1
+Using stress in fitting
+------------------------
+
+
+
+
+Starting Loading
+---------
+Starting new DFT file list
+
+Loading <atoms_kfg.Atoms object at 0x7f4611f8b3d0>
+adding cell  [1, 1, 1]          [1, 1, 1]
+
+---
+ncalc loaded:1
+---------
+
+------------------------
+STARTING FITTING PROCESS
+
+ss_max [1, 1, 1] 2
+
+
+
+Independent groups of atoms (atom numbers, distance, nbody): [0, 2]
+[0, 0]	0.0	1
+[0, 1]	1.0	2
+
+
+Number of independent force constants for each group:
+nind for [0, 2]: [2, 2]
+ntotal_ind for [0, 2]: 4
+
+done setup_lsq for [0, 2]
+
+
+Doing actual lsq fitting now
+
+
+START DO_LSQ
+------------
+do_lsq, ncalc:  1
+
+UMAT out of total size 13, we keep 10, rest are duplicate entries
+number independent ASR constraints: 2
+sum_error rms : 7.450580577649712e-13
+
+
+
+phi_ind_dim  [0, 2] 2
+
+[  0.  10.   0. -10.]
+
+
+
+
+Non-zero phi elements 4 out of a possible 36 assuming no cutoff radii, etc
+
+
+DONE FITTING
+------------------------
+testing
+
+Energy 0.0005 0.0005 -3.25260651746e-19
+
+Forces
+[[ 0.   0.   0.1]
+ [ 0.   0.  -0.1]]
+
+reference force
+[[ 0.   0.   0.1]
+ [ 0.   0.  -0.1]]
+
+Stress
+
+[[ 0.e+00  0.e+00  0.e+00]
+ [ 0.e+00  0.e+00  0.e+00]
+ [ 0.e+00  0.e+00 -1.e-04]]
+
+reference stress
+
+[[ 0.      0.      0.    ]
+ [ 0.      0.      0.    ]
+ [ 0.      0.     -0.0001]]
+
+all done
+
+
+---------------------------------
+STARTING ENERGY CALCULATIONS FROM LIST of files names 
+[<atoms_kfg.Atoms object at 0x7f4611f8b3d0>]
+
+
+---------------------------------
+0 Calculating energy for  [<atoms_kfg.Atoms object at 0x7f4611f8b3d0>]
+
+Energy 0.0005	0.0005	-3.2526065174565133e-19	 	<atoms_kfg.Atoms object at 0x7f4611f8b3d0> 0
+F abs 5.551115123125783e-17 0.03333333333333333	 	<atoms_kfg.Atoms object at 0x7f4611f8b3d0> 0
+F max abs 1.6653345369377348e-16 0.1	 	<atoms_kfg.Atoms object at 0x7f4611f8b3d0> 0
+S abs 2.303929616531697e-19 0.0001	 	<atoms_kfg.Atoms object at 0x7f4611f8b3d0> 0
+
+Forces
+0.0   0.0   0.1
+0.0   0.0   -0.1
+
+Stress
+[[ 0.e+00  0.e+00  0.e+00]
+ [ 0.e+00  0.e+00  0.e+00]
+ [ 0.e+00  0.e+00 -1.e-04]]
+
+
+N 1
+Energy average Deviation 3.2526065174565133e-19	0.0005
+Forces average Deviation 5.551115123125783e-17	0.03333333333333333

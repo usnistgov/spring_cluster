@@ -2,6 +2,7 @@ import numpy as np # numerics for matrices
 import sys # for exiting
 import math
 import StringIO
+import qe_manipulate_vasp
 #from skpythtb_over import *
 #from reptable import reptable
 from copy import copy,deepcopy
@@ -10,6 +11,9 @@ import copy as copy
 import scipy as sp
 ###from phi_prim_usec import phi
 import time
+
+from dict_amu import dict_amu
+
 class dyn:
     """
     My class
@@ -327,88 +331,189 @@ class dyn:
         self.RR_ws = np.zeros((self.wsnum, 3,3), dtype = float)
 
      
-    def load_harmonic(self, filename, asr, zero=True, stringinput=False):
-#        if zero == []:
-#            zero = False
+    def load_harmonic(self, filename=None, asr=True, zero=True, stringinput=False, dielectric=None, zeff=None, A=None, coords=None, types=None):
+        #        if zero == []:
+        #            zero = False
+#        print 'load_harmonic'
+
         if self.verbosity == 'High':
             print 'start read ' + filename
 
 
 #use input from a string
-        if stringinput == False:
-            f = open(filename, 'r')
-        elif stringinput:
-            f = StringIO.StringIO(filename)
 
-        line = f.readline()
+        vasp = False
+        if filename is None: #do not load from a file, take input from other parameters
 
-        sp = line.split()
-        self.ntype = int(sp[0])
-        self.nat = int(sp[1])
-        self.brav = int(sp[2])
-        self.celldm0 = float(sp[3])
-        self.celldm = map(float,sp[3:])
-        if self.brav == 0:
-            line = f.readline()
-            sp = line.split()
-            self.A[0][0:3] = map(float,sp)
-            line = f.readline()
-            sp = line.split()
-            self.A[1][0:3] = map(float,sp)
-            line = f.readline()
-            sp = line.split()
-            self.A[2][0:3] = map(float,sp)
-#            print self.A
-            self.A = self.A
-        elif self.brav == 2:
-            self.A = np.array([[-0.5,0,0.5],[0, 0.5, 0.5],[-0.5, 0.5, 0]])
+            if A is None or dielectric is None or zeff is None or coords is None or types is None:
+                print 'error dynmat load_harmonic need to include A dielectric zeff coords types if not loading file'
+                print A
+                print dielectric
+                print zeff
+                print coords
+                print types
+                
+                exit()
+                
+            vasp=True
+            self.nonan = True
+#            print A
+#            print dielectric
+#            print zeff
+#            print coords
+#            print types
 
+            self.eps = dielectric
 
-        self.Areal = self.A * self.celldm0
-
-        self.celldm0 = np.linalg.norm(self.Areal[0,:])
-        self.A = self.Areal / self.celldm0
-
-        self.vol = abs(np.linalg.det(self.Areal))
-        if self.verbosity == 'High':
-
-            print 'vol ' + str(self.vol)
-            print self.A
-            print 'Areal'
-            print self.Areal
-            print 'self.B'
-            print self.B
-
-        self.B = np.linalg.inv(self.A)
-
-        for n in range(0,self.ntype):
-            line = f.readline().replace("'",' ')
-            sp = line.split()
-            self.dict[int(sp[0])] = [sp[1].strip("'"), float(sp[2])]
-        
-        for n in range(0,self.nat):
-            line = f.readline()
-            sp = line.split()
-            self.names.append([int(sp[0]), int(sp[1])])
-            self.pos.append([float(sp[2]),float(sp[3]),float(sp[4])])
-
-
-        self.pos_crys = np.dot(np.array(self.pos),np.linalg.inv(self.A))
-        self.pos_real = np.dot(self.pos_crys,self.Areal)
-
-        if self.verbosity == 'High':
-
-            print 'self.pos'
-            print self.pos
+#            print 'self.eps', self.eps
             
-            print 'pos_crys'
-            print self.pos_crys
+            self.ntype=len(types)
+
+            self.nat = coords.shape[0]
+
+            self.A = A
+            self.celldm0 = 1.0
+            self.Areal = self.A * self.celldm0
+
+            self.brav = 0
+            self.pos_crys = coords
+            self.pos_real = np.dot(coords, A)
+            self.pos = self.pos_real
+            self.names = types
             
-            print 'ntype: ' + str(self.ntype) + ' number: ' + str(self.nat)
-            print self.A
-            for a in range(0,self.nat):
-                print str(self.names[a][0]) + ' ' + str(self.dict[self.names[a][1]][0]) + ' ' +  str(self.dict[self.names[a][1]][1])  + ' ' + str(self.pos[a][0]) + ' ' + str(self.pos[a][1]) + ' ' + str(self.pos[a][2])
-#        print 'read header'
+            names_dict = {}
+            dict_names = {}
+            
+            for c,t in enumerate(set(types)):
+                print [c, t,dict_amu[t]]
+                names_dict[c] = [t,dict_amu[t]]
+                dict_names[t] = c
+                
+            type_nums = []
+            for c,t in enumerate(types):
+                type_nums.append([c+1,dict_names[t]])
+            self.names = type_nums
+            self.dict = names_dict
+
+                
+            self.zstar = zeff
+                
+
+            self.R = [1,1,1]
+            self.B = np.linalg.inv(self.A)
+            
+    
+
+        else:
+            if stringinput == False:
+                f = open(filename, 'r')
+            elif stringinput:
+                f = StringIO.StringIO(filename)
+
+
+            
+            line = f.readline()
+            
+            sp = line.split()
+
+            if sp[0][0:4] == 'vasp':
+                #            print 'vasp dielectric'
+                vasp = True
+                ntype, nat, A, coords, names_dict, type_nums, zeff_list, diel = qe_manipulate_vasp.load_diel(f.readlines())
+
+                self.nonan = True
+
+                
+                self.ntype=ntype
+                self.nat = nat
+                self.A = A
+                self.celldm0 = 1.0
+                self.Areal = self.A * self.celldm0
+
+                self.brav = 0
+                self.pos_crys = coords
+                self.pos_real = np.dot(coords, A)
+                self.pos = self.pos_real
+                self.names = type_nums
+
+
+                self.dict = names_dict
+
+                self.eps = diel
+                self.zstar = zeff_list
+                self.R = [1,1,1]
+                self.B = np.linalg.inv(self.A)
+
+            
+        if vasp == False:
+
+            
+            self.ntype = int(sp[0])
+            self.nat = int(sp[1])
+            self.brav = int(sp[2])
+            self.celldm0 = float(sp[3])
+            self.celldm = map(float,sp[3:])
+            if self.brav == 0:
+                line = f.readline()
+                sp = line.split()
+                self.A[0][0:3] = map(float,sp)
+                line = f.readline()
+                sp = line.split()
+                self.A[1][0:3] = map(float,sp)
+                line = f.readline()
+                sp = line.split()
+                self.A[2][0:3] = map(float,sp)
+    #            print self.A
+                self.A = self.A
+            elif self.brav == 2:
+                self.A = np.array([[-0.5,0,0.5],[0, 0.5, 0.5],[-0.5, 0.5, 0]])
+
+
+            self.Areal = self.A * self.celldm0
+
+            self.celldm0 = np.linalg.norm(self.Areal[0,:])
+            self.A = self.Areal / self.celldm0
+
+            self.vol = abs(np.linalg.det(self.Areal))
+            if self.verbosity == 'High':
+
+                print 'vol ' + str(self.vol)
+                print self.A
+                print 'Areal'
+                print self.Areal
+                print 'self.B'
+                print self.B
+
+            self.B = np.linalg.inv(self.A)
+
+            for n in range(0,self.ntype):
+                line = f.readline().replace("'",' ')
+                sp = line.split()
+                self.dict[int(sp[0])] = [sp[1].strip("'"), float(sp[2])]
+
+            for n in range(0,self.nat):
+                line = f.readline()
+                sp = line.split()
+                self.names.append([int(sp[0]), int(sp[1])])
+                self.pos.append([float(sp[2]),float(sp[3]),float(sp[4])])
+
+
+            self.pos_crys = np.dot(np.array(self.pos),np.linalg.inv(self.A))
+            self.pos_real = np.dot(self.pos_crys,self.Areal)
+
+            if self.verbosity == 'High':
+
+                print 'self.pos'
+                print self.pos
+
+                print 'pos_crys'
+                print self.pos_crys
+
+                print 'ntype: ' + str(self.ntype) + ' number: ' + str(self.nat)
+                print self.A
+                for a in range(0,self.nat):
+                    print str(self.names[a][0]) + ' ' + str(self.dict[self.names[a][1]][0]) + ' ' +  str(self.dict[self.names[a][1]][1])  + ' ' + str(self.pos[a][0]) + ' ' + str(self.pos[a][1]) + ' ' + str(self.pos[a][2])
+    #        print 'read header'
 
         self.massmat = np.zeros((3*self.nat,3*self.nat), dtype = float)
         masstot = 0.0 
@@ -429,41 +534,45 @@ class dyn:
 
         self.MASS = masstot / self.nat * self.kg / 3.0
 
-        #load zeff, etc
-        line = f.readline()
-        if line.split()[0] == 'T':
-            self.nonan = True
-#            print 'non an TRUE'
-            for n in range(0,3):
-                line = f.readline()
-                sp = line.split()
-                self.eps[n][:] = map(float,sp)
 
-            if self.verbosity == 'High':
-                print 'epsilon'
-                print self.eps
-            for at in range(0,self.nat):
-                line = f.readline()
-                sp = line.split()
-                zt = np.zeros((3,3), dtype=float)
+        if vasp == False:
+            #load zeff, etc
+            line = f.readline()
+            if line.split()[0] == 'T':
+                self.nonan = True
+    #            print 'non an TRUE'
                 for n in range(0,3):
                     line = f.readline()
                     sp = line.split()
-                    zt[n][:] = map(float,sp)
-                if self.verbosity == 'High':
-                    print zt
-                self.zstar.append(zt)
-#                print self.zstar
-        #load load fc's
-        line = f.readline()
-        sp = line.split()
-        self.R = map(int,sp)
-        if self.verbosity == 'High':
-            print 'Range: '  + str(self.R[0]) + ' ' + str(self.R[1]) + ' ' + str(self.R[2])
-        total = self.R[0]*self.R[1]*self.R[2]
-        self.Rdict = {}
-        self.ndict = {}
+                    self.eps[n][:] = map(float,sp)
 
+                if self.verbosity == 'High':
+                    print 'epsilon'
+                    print self.eps
+                for at in range(0,self.nat):
+                    line = f.readline()
+                    sp = line.split()
+                    zt = np.zeros((3,3), dtype=float)
+                    for n in range(0,3):
+                        line = f.readline()
+                        sp = line.split()
+                        zt[n][:] = map(float,sp)
+                    if self.verbosity == 'High':
+                        print zt
+                    self.zstar.append(zt)
+    #                print self.zstar
+            #load load fc's
+            line = f.readline()
+            sp = line.split()
+            self.R = map(int,sp)
+            if self.verbosity == 'High':
+                print 'Range: '  + str(self.R[0]) + ' ' + str(self.R[1]) + ' ' + str(self.R[2])
+            total = self.R[0]*self.R[1]*self.R[2]
+            self.Rdict = {}
+            self.ndict = {}
+
+
+        
         if zero:
             #do not load force constants
 #            print 'skip loading force constants'
@@ -1096,6 +1205,7 @@ class dyn:
         return self.kb * x**2 * math.exp(x)/(math.exp(x) - 1.0)**2
 
     def get_hk(self,k):
+        print 'get_hk'
         c=0
         cfac = np.zeros(self.nat, dtype=complex)
 
@@ -1106,7 +1216,9 @@ class dyn:
         arg = np.exp((-2.0j)*np.pi*(self.M_ws[:,:,:,0]*k[0] + self.M_ws[:,:,:,1]*k[1] + self.M_ws[:,:,:,2]*k[2] ))
         hk = np.sum(arg * self.harm_ws,0)   
 
+        print 'dynmat self.nonan', self.nonan
         if self.nonan:
+#            print 'adding nonan'
             hktemp = np.zeros((self.nat*3,self.nat*3), dtype=complex)
             nonan_only = self.add_nonan(hktemp,k)
 #            nonan_only = self.add_nonan_faster(k)
@@ -1671,16 +1783,30 @@ class dyn:
         e2 = 2.0
         omega = abs(np.linalg.det(self.A*self.celldm0))
 
-        nr1x = int(geg**0.5 / (sum(self.B[:][0]**2))**0.5)+1 +1
-        nr2x = int(geg**0.5 / (sum(self.B[:][1]**2))**0.5)+1 +1
-        nr3x = int(geg**0.5 / (sum(self.B[:][2]**2))**0.5)+1 +1
+        eps_avg = np.linalg.det(self.eps)**(1.0/3.0)
+
         
-##        print self.B
+#        print 'eps_avg', eps_avg
+#        print self.eps
+#        print 'B'
+#        print self.B
+        
+        nr1x = int(geg**0.5 / (sum(self.B[:][0]**2))**0.5 / eps_avg)+1
+        nr2x = int(geg**0.5 / (sum(self.B[:][1]**2))**0.5 / eps_avg)+1
+        nr3x = int(geg**0.5 / (sum(self.B[:][2]**2))**0.5 / eps_avg)+1
+        
+#        nr1x = min(nr1x, 10)
+#        nr2x = min(nr2x, 10)
+#        nr3x = min(nr3x, 10)                
+
+#        nr1x = 12
+#        nr2x = 12
+#        nr3x = 12
+
+        ##        print self.B
 
 #        print 'nrx'
 #        print str(nr1x) + ' ' + str(nr2x) + ' ' + str(nr3x)
-        
-
         
 
         fac = +1.0 * e2 * 4.0 * np.pi / omega
@@ -1691,7 +1817,8 @@ class dyn:
                     g =  np.dot(self.B, [m1, m2, m3])
 ##                    print 'g ' + str(g)
                     geg = np.dot(np.dot(g, self.eps), g.transpose())
-##                    print 'geg ' + str(geg)
+#                    print 'geg ' + str(geg)
+#                    print self.eps
                     
                     if geg > 0.0 and geg / alph / 4.0 < gmax :
                         facgd = fac * np.exp(-geg/alph / 4.0)/geg
@@ -1708,7 +1835,7 @@ class dyn:
                             for i in range(0,3):
                                 for j in range(0,3):
                                     hk[na*3 + i, na*3+j] += -1* facgd * zag[i]*fnat[j] # np.exp(2.0*np.pi*np.dot(k,(np.array(self.pos[na],dtype=float)-np.array(self.pos[nb],dtype=float))))
-##                                    print 'blah ' + str(-1*facgd *zag[i]*fnat[j])
+
 
 
                     g = g + np.dot(self.B, k)
@@ -1731,6 +1858,8 @@ class dyn:
                                     for j in range(0,3):
                                         hk[3*na + i, 3*nb + j] += facg*zag[i]*zbg[j]  # np.exp(1.0j*2.0*np.pi*np.dot(k,(np.array(self.pos[na],dtype=float)-np.array(self.pos[nb],dtype=float))))
 
+#        print 'addnonan hk'
+#        print hk
         return hk
 ########################
     def add_nonan_with_derivative(self,hk,k, coords_crys):
@@ -1763,11 +1892,30 @@ class dyn:
         e2 = 2.0
         omega = abs(np.linalg.det(self.A*self.celldm0))
 
-        B=self.B.T
-        nr1x = int(geg**0.5 / (sum(B[:][0]**2))**0.5)+1
-        nr2x = int(geg**0.5 / (sum(B[:][1]**2))**0.5)+1
-        nr3x = int(geg**0.5 / (sum(B[:][2]**2))**0.5)+1
+        eps_avg = np.linalg.det(self.eps)**(1.0/3.0)
 
+#        print 'eps_avg', eps_avg
+#        print self.eps
+        
+        B=self.B.T
+
+#        print 'B'
+#        print self.B
+
+
+        nr1x = int(geg**0.5 / (sum(B[:][0]**2))**0.5 / eps_avg)+1
+        nr2x = int(geg**0.5 / (sum(B[:][1]**2))**0.5 / eps_avg)+1
+        nr3x = int(geg**0.5 / (sum(B[:][2]**2))**0.5 / eps_avg)+1
+
+#        nr1x = min(nr1x, 10)
+#        nr2x = min(nr2x, 10)
+#       nr3x = min(nr3x, 10)                
+
+#        nr1x = 12
+#        nr2x = 12
+#        nr3x = 12
+
+        
 #        if self.R[0] == 1:
 #            nr1x = 0
 #        else:
@@ -1787,7 +1935,12 @@ class dyn:
 
 #        print 'nrx'
 #        print str(nr1x) + ' ' + str(nr2x) + ' ' + str(nr3x)
-#        for na in range(self.nat):
+
+#        print self.A
+#        print self.celldm0
+#        print self.B
+        
+        #        for na in range(self.nat):
 #            print self.zstar[na]
         
 #        Brealsigma = np.dot(np.linalg.inv(self.Areal),strain)
@@ -5233,6 +5386,7 @@ class dyn:
         for nq in range(unitcells):
             q = Q[nq,:]
             hk,hk2,nonan, npa, npp = self.get_hk(q)
+#            print 'hk2', hk2
             H_Q[nq,:,:] = hk2
 
             counter[:] = [nq/(self.supercell[1]*self.supercell[2]), (nq/self.supercell[2])%self.supercell[1], nq%(self.supercell[2])]
@@ -5343,6 +5497,12 @@ class dyn:
                         harm_normalpp[n1*3:(n1+1)*3, n2*3:(n2+1)*3,:,:] = hkpp[atoms_1*3:(atoms_1+1)*3, atoms_2*3:(atoms_2+1)*3,:,:].real
 
 
+#        print 'H_R'
+#        print H_R
+#        print 'harm_normal'
+#        print harm_normal
+
+                        
         return H_R, harm_normal, 1, harm_normalp, 1, harm_normalpp, H_Q2
 
 #     def supercell_fourier_make_force_constants_derivative_harm(self,A, coords):

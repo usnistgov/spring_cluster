@@ -1,0 +1,8 @@
+This example shows how to run cluster_spring with other sources of forces/energies/stresses besides QE or VASP
+
+It uses a fake example to show how to setup Atoms objects using fake
+forces/energies/stresses, but you will have to get this data from somewhere to run the code
+
+run_othercode_zeff.py show the same thing with nonzero dielectric
+constant/born effective charges.
+

@@ -1,0 +1,17 @@
+ISMEAR =  0
+SIGMA  =  0.01
+EDIFF  = 1.E-8
+
+## to get the Born effective charges
+## and the macroscopic dielectric tensor
+LEPSILON = .TRUE.
+
+LSORBIT       = .FALSE.
+
+PREC = Accurate
+ENCUT = 500
+
+IBRION = 0
+
+ISIF = 2
+

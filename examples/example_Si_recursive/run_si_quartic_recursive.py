@@ -43,6 +43,12 @@ def DFT(infile, number=0):
         exit()
 
 
+#if you are using VASP instead, the monte carlo part should output a new POSCAR named POSCAR.mc
+#you will have to rewrite the DFT function to run a vasp calculation on that POSCAR
+#this is not well tested.
+
+
+
 #then we define our model
 
 
@@ -91,7 +97,7 @@ C1, A1, T1 = qe_manipulate.generate_supercell(fil, [1,1,1], [])
 fil.close()
 
 #recursive update
-#DFT is the input file
+#DFT is the input function defined above
 #10 is we run 10 recursive steps
 #A1,C1,T1 are starting structure
 #500 is 500 Kelvin
