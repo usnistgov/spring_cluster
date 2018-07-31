@@ -94,7 +94,7 @@ set_energy_weight(n=0.1)
 Sets the relative weight of the energy/stress vs. the forces in the
 fitting. Default=0.1. Increasing it will weight the energy
 higher. This can improve the energies, but if set too high it can 
-destroy out of sample performace and cause instabilities
+destroy out of sample performance and cause instabilities
 
 -------
 
@@ -106,8 +106,8 @@ v='med'
 v='high'
 
 High verbosity will output a LOT of stuff that may or may not be
-useful for debuging. It will also output a lot more timing
-information. The matricies UMAT, FMAT, and ASR have the information
+useful for debugging. It will also output a lot more timing
+information. The matrices UMAT, FMAT, and ASR have the information
 used in the least squares fitting. UMAT is the dependent variables, FMAT
 are the forces/stresses/energy, and ASR is the constraint matrix. UMAT
 can be very large if you have lots of data or features.
@@ -120,10 +120,10 @@ Sets how the code does regression. Options for method are:
 'lsq' - default, least squares (with constraints)
 'rfe' - recursive feature elimination
      OPTIONS:  num_keep - integer, keep this many features (no CV)
-               choose_rfe - string - how to deterimine number of features from CV. can be 'good-median', 'good-mean', 'max-mean', 'max-median'
+               choose_rfe - string - how to determining number of features from CV. can be 'good-median', 'good-mean', 'max-mean', 'max-median'
                
 'lasso' - lasso
-     OPTIONS: alpha hyperparameter for lasso. 1e-9 ish tends to work
+     OPTIONS: alpha hyper-parameter for lasso. 1e-9 ish tends to work
 
 --------
 
@@ -207,7 +207,7 @@ For example: [0,2] - harmonic spring constants
 
 cutoff is the cutoff distance for this term. It can either be in Bohr
 (floating point positive number), or -1, -2, -3, or -4. The negative
-integers represent nearst neighbors. So -1 is the first n.n., etc. We
+integers represent nearest neighbors. So -1 is the first n.n., etc. We
 only calculate up to 4th n.n. default = 0.01
 
 body = integer of allowed number of different atoms in each term. to
@@ -221,7 +221,7 @@ terms, and there are also far less of them. For example:
      setup_cutoff([0,3], cutoff=-3, body=3, dist_cutoff_twobody=-4)
      Will allow 3 body terms up to the 3rd nn, but 2 body terms up to 4th n.n.
 
-limit_xy=False Limits atomic displacemnt terms to only either two
+limit_xy=False Limits atomic displacement terms to only either two
 directions. So for example
 
 u_x u_y u_y is allowed with limit_xy=True, but
@@ -245,7 +245,7 @@ do_apply_sym()
 Optional line that does symmetry analysis of model. do_all_fitting()
 (see above) will call it if it hasn't been run already, so you never
 need to run this yourself. However, it can be useful for testing
-models when the symmetry anlysis is taking lots of time. You can run
+models when the symmetry analysis is taking lots of time. You can run
 it once, and then reload your spring_cluster object from a pickle
 after using free_setup_memory()
 
@@ -273,7 +273,7 @@ calc_energy(A,pos,types, cell=[])
 
 Calculates the energy/forces/stress of a unit cell
 
-A - 3x3 numpy object - lattic vectors
+A - 3x3 numpy object - lattice vectors
 pos - natx3 numpy object - fractional coords of unit cell
 types - list - names of atoms for the cluster variables
 cell - size of supercell - optional. Code will try to guess it if not given
@@ -425,7 +425,7 @@ Other options are like dos
 
 gruneisen_total(qpoints, T)
 
-The total Gruneisen paramter at temperature T (K)
+The total Gruneisen parameter at temperature T (K)
 qpoints is either a an integer or list [nq1, nq2, nq3] of qpoints
 
 Not very well tested
@@ -437,17 +437,17 @@ Requires harmonic and cubic f.c.'s
 
 gruneisen(qpoint)
 
-The Gruneisen paramter at a single qpoint in crystal units at temperature T (K)
+The Gruneisen parameter at a single qpoint in crystal units at temperature T (K)
 Not very well tested
 
 Requires harmonic and cubic f.c.'s
 
-returns gruneisen param and eigenvals at the qpoint
+returns gruneisen param and eigenvalues at the qpoint
 --------
 
 elastic_constants()
 
-Ouputs the elastic constants and various related quantites
+Outputs the elastic constants and various related quantities
  - Compliance tensor
  - Piezoelectric tensor (Born effective charges, relaxed ion only)
  - Dielectric constant (Born effective charges required)
@@ -460,7 +460,7 @@ Ouputs the elastic constants and various related quantites
 
 relax(A,pos,types,relax_unit_cell=True)
 
-Will attempt to use bfgs to relax a given cell using the model
+Will attempt to use BFGS to relax a given cell using the model
 A - lattice vectors (numpy)
 pos - fractional coordinates  (numpy)
 types - list of atom names
@@ -475,7 +475,7 @@ Not very well tested, (let me know if this fails even though model is good)
 
 recursive_update(DFT_function, file_list_train, steps, A_start, C_start, T_start,   temperature, dummy_input_file, directory='./', mc_steps=3000, update_type=[True, False, False], mc_cell = [])
 
-Tool for running an interative update/training of the model.  Code
+Tool for running an interactive update/training of the model.  Code
 will generate new structures at given temperature using MC and add
 those to the fitting iteratively.
 
@@ -490,6 +490,8 @@ those to the fitting iteratively.
 # mc_steps - steps
 # update_type = [update_atom_pos, update_cell, update_clustervars]
 # mc_cell - cell of the montecarlo input. otherwise we guess it
+
+if using VASP, the code should also write a POSCAR.mc file for every update.
 
 returns - final file list
 
