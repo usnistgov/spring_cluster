@@ -31,7 +31,7 @@ example_tools :        How to use the generation tools for quickly making QE
 	       	       POSCARs
 
 example_SiGe_vasp :    Shows how to run an example using VASP POSCARS and
-                       OUTCARS. There is very little change from the user's propective
+                       OUTCARS. There is very little change from the user's prospective
 
 example_othercodes :   Shows how to run a fake example using data from
 		       an unsupported first princples code or other
