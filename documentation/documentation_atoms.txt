@@ -1,0 +1,31 @@
+To use other first principles codes besides QE or VASP, it is possible
+to give the cluster_spring code Atoms objects, modified for use with this code.
+
+The basic usage is to declare Atoms objects, using data from some
+external source, and pass them to cluster_spring like you would with
+QE input/output files or VASP POSCARs/OUTCARs
+
+See the example example_othercodes for more information
+
+-----
+
+For example:
+
+from atoms_kfg import Atoms
+
+pos_distorted = np.array([[0,0,0],[0,0,0.101]],dtype=float)
+energy_distorted=0.0005000000
+forces_distorted = np.array([[0,0,0.1],[0,0,-0.1]],dtype=float)
+stress_distorted = np.array([[0,0,0],[0,0,0],[0,0,-1.000000000000000e-04]],dtype=float)
+
+distorted = Atoms(scaled_positions=pos_distorted,
+                  symbols=['N','N'],
+                  cell=A,
+                  forces=forces_distorted,
+                  stress=stress_distorted,
+                  energy=energy_distorted)
+
+
+...
+
+e,f,s,er,fr,sr = mysc.calc_energy_qe_file(distorted)

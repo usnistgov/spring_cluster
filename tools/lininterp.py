@@ -32,7 +32,7 @@ f = open(fil,'r')
 A,atoms,coords,coords_type, masses, kpoints = load_atomic_pos(f, return_kpoints=True)
 f.close()
 
-for x in range(0,30):
+for x in range(0,20):
 
     xx = float(x)/10.0
 

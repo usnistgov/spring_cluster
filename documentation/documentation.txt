@@ -13,6 +13,8 @@ supercell - list of 3 integers - supercell used for fitting. default =
 [1,1,1] outputfile - filename of the output file used to set the zero
 of energy of the hs_file
 
+hs_file can be a Quantum Espresso (QE) input file, a VASP POSCAR, or a
+Atoms object
 
 ------
 
@@ -135,18 +137,26 @@ load_hs_output(hs_file_out)
 string - filename of high symmetry output file. can also be loaded
          during initialization. no default
 
+Can be QE output file, VASP OUTCAR, or Atoms object
+
 --------
 
-load_zeff(fc)
+load_zeff(fc=None, dielectric=None, zeff=None)
 
-string - filename of file with information on Born effective charges
-and dielectric constant, if included. No default.
+fc - string - filename of file with information on Born effective
+charges and dielectric constant, if included. No default. Can by QE
+dyn file or a VASP OUTCAR with relevant information
+
+dielectric = 3x3 np array with dielectric information if not read from fc
+
+zeff= list of 3x3 np arrays with Born effective charge information, if
+not read from fc
 
 --------
 load_filelist(file_list)
 
 file_list is either a name of a file that contains a list of files to
-fit to, or a list strings that contains the same information.
+fit to, or a list strings that contains the same information, or a list of lists that contains the same information.
 
 the file_list has a few options. First is just a list of file names
 
@@ -177,6 +187,9 @@ into the fitting supercell if they are tiled.
 
 Orthogonal supercells of any size are allowed. They do not have to fit
 in the fitting supercell.
+
+The OUTPUT files can be QE outputs, VASP OUTCARS, or Atoms objects
+with forces, energies, and stresses added.
 
 --------
 
@@ -274,7 +287,7 @@ energy, forces, stress
 
 calc_energy_qe_file(filename,cell=[])
 
-Calculates the energy/forces/stresses of a QE outpufile given by filename
+Calculates the energy/forces/stresses of a QE outpufile or VASP OUTCAR given by filename, or an Atoms object
 
 cell - size of supercell - optional. Code will try to guess it if not given
 
@@ -287,7 +300,7 @@ energy, forces, stress
 
 calc_energy_qe_input(filename,cell=[])
 
-See above, but for QE input files
+See above, but for QE input files / POSARS / Atoms object
 
 
 --------
@@ -296,7 +309,7 @@ calc_energy_qe_output_list(tocalc)
 
 Runs calc_energy_qe_file for a list of files tocalc
 
-Will compare energy/force/stress to QE outputfiles for model testing purposes
+Will compare energy/force/stress to QE outputfiles / VASP OUTCAR / Atoms object for model testing purposes
 
 returns ENERGIES,FORCES, STRESSES, ENERGIES_ref,FORCES_ref, STRESSES_ref 
 
@@ -306,7 +319,7 @@ lists of all of those things for each structure in tocalc
 
 calc_energy_qe_input_list(filename):
 
-See above, but for a list of QE input files
+See above, but for a list of QE input files / VASP OUTCARs / Atoms objects
 
 
 -------
@@ -366,6 +379,9 @@ step_size has the final step size
 outstr - a string of either the final structure, or a selected structure if 
 the runaway condition of negative energies is reached. Useful for using 
 the output of MC to run a new DFT calculation. See also recursive_update()
+
+if the code loaded VASP files to initialize it should also output a file named
+POSCAR.mc which has the outstr information
 
 --------
 
