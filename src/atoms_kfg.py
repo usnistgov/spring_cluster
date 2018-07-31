@@ -19,7 +19,7 @@ import numpy as np
 
 class Atoms(object):
     """Atoms class compatible with the ASE Atoms class
-    Only the necessary stuffs to phonpy are implemented. """
+    Only the necessary stuffs to cluster_spring are implemented. """
     
     def __init__(self,
                  symbols=None,
