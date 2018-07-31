@@ -33,15 +33,15 @@ with python distributions:
 
 These additional libraries are less common and are also required:
 
-        sklearn - Machine learning software
-      	May be installed using the pip command:
-	sudo pip install -U scikit-learn
-	otherwise consult http://scikit-learn.org/stable/install.html
+      sklearn - Machine learning software
+      May be installed using the pip command:
+      sudo pip install -U scikit-learn
+      otherwise consult http://scikit-learn.org/stable/install.html
 
-        spglib (or pyspglib) - space group symmetry analysis software
-	May be installed using the pip command:
-	sudo pip install --user spglib
-	otherwise consult https://atztogo.github.io/spglib/python-spglib.html#python-spglib
+      spglib (or pyspglib) - space group symmetry analysis software
+      May be installed using the pip command:
+      sudo pip install --user spglib
+      otherwise consult https://atztogo.github.io/spglib/python-spglib.html#python-spglib
 
 After installing the necessary libraries, the necessary compilation command is
 
