@@ -884,8 +884,8 @@ class phi:
 #      A,types,pos,forces,stress,energy = load_output(SP[0])
       A_big,types_big,pos_big,forces_big,stress_big,energy_big = load_output_both(SP[0], self.relax_load_freq)
 
-
-      print A_big,types_big,pos_big,forces_big,stress_big,energy_big
+#
+ #     print A_big,types_big,pos_big,forces_big,stress_big,energy_big
 
       if A_big is None:
         print 'Failed to load '+str(SP[0])+', attempting to continue1'

@@ -1,6 +1,11 @@
 
 Documentation of spring_cluster
 
+Units are currently Bohr and Rydberg atomic units.
+
+Version 0.01
+Tue Jul 31 17:28:41 EDT 2018
+
 ######################################################
 
 Initialization / General

@@ -33,6 +33,18 @@ distorted = Atoms(scaled_positions=pos_distorted,
                   stress=stress_distorted,
                   energy=energy_distorted)
 
+pos_distorted2 = np.array([[0,0,0],[0,0,0.099]],dtype=float)
+energy_distorted2=0.0005000000
+forces_distorted2 = np.array([[0,0,-0.1],[0,0,0.1]],dtype=float)
+stress_distorted2 = np.array([[0,0,0],[0,0,0],[0,0,1.000000000000000e-04]],dtype=float)
+
+distorted2 = Atoms(scaled_positions=pos_distorted2,
+                  symbols=['N','N'],
+                  cell=A,
+                  forces=forces_distorted2,
+                  stress=stress_distorted2,
+                   energy=energy_distorted2)
+
 
 #now run code as ususal
 
@@ -43,7 +55,9 @@ mysc.setup_cutoff([0,2],-1)
 
 mysc.print_current_options()
 
-mysc.load_filelist([distorted]) #list of distorted structures
+mysc.load_filelist([[distorted, 10], [distorted2, 10]]) #list of distorted structures. 10 is a weight
+#mysc.load_filelist([distorted]) #this also works
+
 mysc.do_all_fitting()
 
 
