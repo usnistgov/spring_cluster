@@ -63,6 +63,8 @@ created with cython, but it is not human readable.
 
 If you have a better way to install the code, or any other comments, please let me know.
 
+Also, please let me know if you find this code useful, or if you need features added, or you are deeply confused.
+
 kevin.garrity@nist.gov
 
 
