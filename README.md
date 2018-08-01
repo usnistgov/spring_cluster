@@ -1,3 +1,9 @@
+Development version:
+-------------------
+
+Working on charged defects.
+
+
 Tue Jul 31 13:20:57 EDT 2018
 
 Kevin F. Garrity
