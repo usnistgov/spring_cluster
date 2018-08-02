@@ -10,6 +10,8 @@ VASP to fit a classical model, which can then be used to treat larger
 unit cells or to compute thermodynamic quantities using classical Monte
 Carlo sampling.
 
+Please see preprint at https://arxiv.org/abs/1808.00090
+
 The code is designed to treat solid solutions and magnetic materials,
 but it can also be used to fit force constants for single phases.
 
