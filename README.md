@@ -15,6 +15,8 @@ Please see preprint at https://arxiv.org/abs/1808.00090
 The code is designed to treat solid solutions and magnetic materials,
 but it can also be used to fit force constants for single phases.
 
+The main way to learn about the code is to look at the examples.
+
 Documentation:
 -------------
 
