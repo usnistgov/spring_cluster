@@ -32,7 +32,7 @@ mysc = spring_cluster(high_sym, supercell=supercell, outputfile=high_sym_out)
 #set regression type to recursive feature elimination
 #this will eliminate a bunch of features, but you can make the example run faster if you comment it out or set it to 'lsq'
 
-mysc.set_regression('rfe', 'max-median')
+mysc.set_regression('rfe')
 
 # if you set mysc.set_regression('rfe', num_keep=300), it will skip the cross-validation and directly keep 300 predictors
 
