@@ -76,6 +76,7 @@ def prepare_sym(dim, int nonzero_atoms,int permutedim_k,int permutedim_s,int nsy
 
               else:
                 ATOMS_P_alt[(aa*permutedim_k*permutedim_s + ps*permutedim_k + pk)*nsymm + count,ii+dim[0]] = atomshift[c[atoms_pk[0]],c[atoms_pk[ii]]]
-
+#            print 'prepare_sym',atoms,'=>', ATOMS_P_alt[(aa*permutedim_k*permutedim_s + ps*permutedim_k + pk)*nsymm + count,:], 'preshift', c[atoms_ps[0]],c[atoms_ps[1]], 'atoms_ps', atoms_ps[0],atoms_ps[1]
+#            print count, 'c', c
 
     return ATOMS_P_alt

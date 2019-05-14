@@ -309,6 +309,9 @@ def calculate_energy_fortran(phiobj, np.ndarray[DTYPE_t, ndim=2] A, np.ndarray[D
   #get matricies ready
   supercell_add, strain, UTT, UTT0, UTT0_strain, UTT_ss, UTYPES, nsym, correspond, us, mod_matrix, types_reorder =   prepare_for_energy(phiobj, supercell, coords, A, types)
 
+  print 'done prepare'
+  sys.stdout.flush()
+
 
   TIME.append(time.time())
 
@@ -327,6 +330,7 @@ def calculate_energy_fortran(phiobj, np.ndarray[DTYPE_t, ndim=2] A, np.ndarray[D
     energy_t = 0.0
     t1=time.time()
 
+    print 'dim phi n', dim, phi.shape, nonzero.shape
     sys.stdout.flush()
     if phi.shape[0] == 0:
       print 'WARNING: dim '+str(dim)+' has no nonzero phi components, skipping energy contribution'
@@ -342,6 +346,7 @@ def calculate_energy_fortran(phiobj, np.ndarray[DTYPE_t, ndim=2] A, np.ndarray[D
     if phiobj.verbosity == 'High': #perform some checks
       print 'FORCES SUM ' + str(dim) + ' ' + str(np.sum(np.sum(forces_super_t,0),0))
       print 'etimedim ' + str(dim) + ' ' + str(t2-t1) + ' ' + str(energy_t)
+    print 'done dim', dim
     sys.stdout.flush()
 
   TIME.append(time.time())

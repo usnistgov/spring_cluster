@@ -186,7 +186,8 @@ def load_output_both(thefile, relax_load_freq=1):
 
 
             else:
-                splitfiles[-1].append(line)
+                if len(splitfiles) > 0:
+                    splitfiles[-1].append(line)
 
         if relax_load_freq < 1: #keep only the last file
             splitfiles = [splitfiles[-1]]
