@@ -33,7 +33,7 @@ def reconstruct_fcs_nonzero_phi_relative_cython(myphi, phi_indpt, ngroups, nind,
   cdef int nzl = 0
 #  cdef int a = 0
   cdef int ngrp = 0
-  cdef np.ndarray[DTYPE_int_t, ndim=2] trans 
+  cdef np.ndarray[DTYPE_t, ndim=2] trans 
 
   #This takes in the indept fcs and expansion coeffs and reconstructs the full glorious 
   #fcs matrix. The output format is a little funky. It consists of lists of nonzero fcs elements and 
@@ -73,7 +73,7 @@ def reconstruct_fcs_nonzero_phi_relative_cython(myphi, phi_indpt, ngroups, nind,
   #get starting index of each group's indpt fcs.
   startind = myphi.getstartind(ngroups, nind)
 
-  trans  = np.zeros((tensordim, max(nind[:])),dtype=DTYPE_int)
+  trans  = np.zeros((tensordim, max(nind[:])),dtype=DTYPE)
 
   dimtot = np.sum(dim)
   if dim[1] < 0:
@@ -165,8 +165,14 @@ def reconstruct_fcs_nonzero_phi_relative_cython(myphi, phi_indpt, ngroups, nind,
 
 #    atoms = myphi.atom_index(a,dimtot)
     atoms=nonzero_list[nzl,2:]
-
+    if dim[1] < 0:
+      if dim[0] == 1:
+        atoms = np.array([atoms[0], atoms[0], atoms[1]],dtype=int)
+      if dim[1] == 2:
+        atoms = np.array([atoms[0], atoms[1], atoms[0], atoms[1]],dtype=int)
+        
     a=myphi.index_atom(atoms,dimtot)
+
     s = []
     s0 = myphi.supercell_index[atoms[dimtot-1]]
     for a1 in atoms[0:dimtot-1]:
@@ -180,10 +186,18 @@ def reconstruct_fcs_nonzero_phi_relative_cython(myphi, phi_indpt, ngroups, nind,
 
     tb=time.time()
 
-    if sparse.issparse(Trans[str([ngrp,atoms.tolist()])]):
-      trans[:,0:nind[ngrp]] = Trans[str([ngrp,atoms.tolist()])].toarray()[:,0:nind[ngrp]]
+    if dim[1] < 0:
+      at = [atoms[-2], atoms[-1]]
+      if sparse.issparse(Trans[str([ngrp,at])]):
+        trans[:,0:nind[ngrp]] = Trans[str([ngrp,at])].toarray()[:,0:nind[ngrp]]
+      else:
+        trans[:,0:nind[ngrp]] = Trans[str([ngrp,at])][:,0:nind[ngrp]]
+
     else:
-      trans[:,0:nind[ngrp]] = Trans[str([ngrp,atoms.tolist()])][:,0:nind[ngrp]]
+      if sparse.issparse(Trans[str([ngrp,atoms.tolist()])]):
+        trans[:,0:nind[ngrp]] = Trans[str([ngrp,atoms.tolist()])].toarray()[:,0:nind[ngrp]]
+      else:
+        trans[:,0:nind[ngrp]] = Trans[str([ngrp,atoms.tolist()])][:,0:nind[ngrp]]
 
     for c_ijk in range(tensordim):
       ijk = myphi.ijk_index(c_ijk,dim[1])

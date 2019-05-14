@@ -8,6 +8,7 @@ matplotlib.use('Agg') #fixes display issues?
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy as sp
+from scipy import optimize
 from sklearn.linear_model import Lasso
 from sklearn.model_selection import KFold
 import math
@@ -34,7 +35,12 @@ from prepare_sym import prepare_sym
 from atoms_kfg import Atoms
 from dict_amu import dict_amu
 
+from ewald import ewald
+from eval_ewald import eval_ewald
 
+from zeff import borneffective
+from make_zeff_model import make_zeff_model
+from make_dist_array_fortran_parallel_lowmemory import make_dist_array_fortran_parallel_lowmemory
 
 #this class holds all the main functions to do the fitting
 
@@ -88,8 +94,13 @@ class phi:
 
     self.lsq = lsq_constraint() #self.alpha_ridge)
 
+    self.types_dict = {}
+    self.reverse_types_dict={}
     self.moddict_cells = {} #caches information on distances between atoms for various supercells
 
+    self.extra_strain = False
+    self.extra_strain_terms = []
+    self.extra_strain_coeffs = []
 
     if hs_file == None:
       print "Initiating with nothing setup"
@@ -112,7 +123,6 @@ class phi:
 
     self.rfe_type = 'good-median' #other options 'max', 'se'
 
-    self.types_dict = {}
 
     self.dipole_list = []
 
@@ -130,6 +140,7 @@ class phi:
     self.verbosity_mc = 'normal'
 
     self.exact_constraint = [] #we calculate the energy of these file numbers exactly
+    self.ineq_constraint = [] #we calculate the energy of these file numbers exactly    
 
     self.weight_by_energy = False #if true, we use a formula to weight large energy structures less
     
@@ -139,20 +150,37 @@ class phi:
 
     self.usestress = True
     self.useenergy = True
-    self.useewald = False
+    self.use_borneffective = False
+    self.use_fixedcharge = False
     self.energy_weight = 0.1
+    self.stress_weight = 100.0
     
     self.energy_differences = []
-    self.energy_differences_weight = self.energy_weight
+    self.energy_differences_weight = 1000.0
 
     self.alpha_ridge = -1
     
+    self.fixedcharge_list = []
+    self.fixedcharge_dict = {}
+    self.noforces = False
+
+    self.model_zeff = False
+    self.zeff_dict = {}
+
+    self.zero_fixed = -9999
+    self.oldsupport = False
+    self.multifit=False
     
   def load_hs(self,hs_file, supercell):
     # loads structure from a qe input file, and gets symmetry
     TIME = [time.time()]
     Acell,atoms,coords_hs,coords_type, masses,kpts = load_atomic_pos(hs_file, return_kpoints=True)
 
+    for t in coords_type:
+      self.types_dict[t] = 0
+      self.reverse_types_dict[0] = t
+
+    
     if kpts[0] == -9 and kpts[1] == -9  and kpts[2] == -9 :
       self.vasp_mode=True
       kpts = [1,1,1]
@@ -177,7 +205,7 @@ class phi:
     TIME.append(time.time())
 
     
-    self.dataset = spglib.get_symmetry_dataset( self.mystruct , symprec=1e-6 )
+    self.dataset = spglib.get_symmetry_dataset( self.mystruct , symprec=1e-2 )
 
     TIME.append(time.time())
     self.nsymm = len(self.dataset['rotations'])
@@ -203,6 +231,8 @@ class phi:
     self.stress_ref = np.zeros((3,3),dtype=float)
 
 
+    self.magnetic_anisotropy = -999
+
     TIME.append(time.time())
 
     if self.verbosity == 'High':
@@ -210,6 +240,8 @@ class phi:
       for T2, T1 in zip(TIME[1:],TIME[0:-1]):
         print T2 - T1
 
+
+        
 
   def load_hs_output(self,hs_file_out):
     #load information from the high symmetry output file
@@ -234,10 +266,397 @@ class phi:
     for n in range(np.prod(self.supercell)):
       self.forces_ref[(n*self.nat):((n+1)*self.nat),:] += forces[0:self.nat,:]
 
-  def setup_ewald(self):
-    #Turn on ewald long range electrostatics
-    self.useewald = True
 
+  def add_strain_term(self, order, component):
+
+#    print 'EXTRA adding strain term', order, component
+    self.extra_strain_terms.append([order, component])
+
+
+  def convert_voight_U(self, voight):
+
+    if voight == 0:
+      return 0
+    elif voight == 1:
+      return 3
+    elif voight == 2:
+      return 5
+    elif voight == 3:
+      return 4
+    elif voight == 4:
+      return 2
+    elif voight == 5:
+      return 1
+    else:
+      print 'error convert'
+      return -1
+
+  def convert_voight_U_reverse(self, ind):
+
+    if ind == 0:
+      return 0
+    elif ind == 3:
+      return 1
+    elif ind == 5:
+      return 2
+    elif ind == 4:
+      return 3
+    elif ind == 2:
+      return 4
+    elif ind == 1:
+      return 5
+    else:
+      print 'error convert'
+      return -1
+    
+  def fitting_strain_term(self, strain):
+
+      
+    c=0
+    if self.useenergy:
+      c+= 1
+    if self.usestress:
+      c+= 6
+
+#    print 'STRAIN', strain
+      
+#    print 'EXTRA Ushape', (c,len(self.extra_strain_terms))
+    U = np.zeros((c,len(self.extra_strain_terms)),dtype=float)
+
+    A = np.dot( self.Acell , np.eye(3) + strain)
+    vol = abs(np.linalg.det(A))
+
+#    print 'vol', vol
+    
+    eye = np.eye(3)
+    
+    for a,(order, comp) in enumerate(self.extra_strain_terms):
+      if order == 1:
+        c=0
+        if self.usestress:
+          for cc in comp:
+            v=self.convert_voight_U(cc)
+#            print 'EXTRASTRAIN v', comp, v, a
+            U[c+v,a] += -1.0 
+          c = 6
+        if self.useenergy:
+          for cc in comp:
+            ind = self.reverse_voight(cc)
+#            print 'c cc', c, cc, a, order, comp
+            U[c, a] += strain[ind[0],ind[1]] * self.energy_weight    #/np.linalg.det(eye+strain)
+      elif order == 2:
+        c=0
+        if self.usestress:
+          for cc in comp:
+
+            ind0 = self.reverse_voight([cc[0]])
+            v=self.convert_voight_U(cc[0])
+            for i in cc[1:]:
+              
+              ind = self.reverse_voight(i)
+            U[c+v,a] += -1.0 * (strain[ind[0],ind[1]] +strain[ind[1],ind[0]])/2.0
+#              print 'UUUU', -1.0 * self.energy_weight * strain[ind[0],ind[1]] ,-1.0 * self.energy_weight * strain[ind[0],ind[1]], strain[ind[0],ind[1]],self.energy_weight
+          c = 6
+        if self.useenergy:
+          for cc in comp:
+            t = 1.0
+            for i in cc:
+              ind = self.reverse_voight(i)
+              t = t * strain[ind[0],ind[1]]
+            U[c, a] += 0.5*t* self.energy_weight#/np.linalg.det(eye+strain)
+      elif order == 3:
+        c=0
+        if self.usestress:
+          for cc in comp:
+            t = 1.0
+            for i in cc[1:]:
+              v=self.convert_voight_U(i)
+              ind = self.reverse_voight(i)
+              t = t * strain[ind[0],ind[1]]
+              
+              #            print 'EXTRASTRAIN v', comp, v, a
+
+            U[c+v,a] += -0.5 * t 
+          c = 6
+        if self.useenergy:
+          for cc in comp:
+            t = 1.0
+            for i in cc:
+              ind = self.reverse_voight(i)
+              t = t * strain[ind[0],ind[1]]
+            U[c, a] += 1.0/6.0* t * self.energy_weight#/np.linalg.det(eye+strain)
+            print 'STRAINX', ind, 
+            
+#    print 'EXTRASTRAIN smallu'
+#    print U
+#    print 
+    return U
+
+  def eval_strain_term(self, A, cell):
+
+    
+    if cell is None or len(cell) == 0:
+      bestfitcell = self.find_best_fit_cell(A)
+    else:
+      bestfitcell = cell
+
+#    print 'EXTRASTRAIN', bestfitcell
+
+      
+    Aref = np.zeros((3,3),dtype=float)
+    Aref[0,:] = self.Acell[0,:] * bestfitcell[0]
+    Aref[1,:] = self.Acell[1,:] * bestfitcell[1]
+    Aref[2,:] = self.Acell[2,:] * bestfitcell[2]
+    
+    et = np.dot(np.linalg.inv(Aref),A) - np.eye(3)
+    strain =  np.array(0.5*(et + et.transpose()), dtype=float, order='F')
+    eye = np.eye(3)
+    energy = 0.0
+    stress= np.zeros((3,3),dtype=float)
+
+    if self.extra_strain:
+    
+      for a,(order, comp) in enumerate(self.extra_strain_terms):
+        for cc in comp:
+          if order == 1:
+            ind = self.reverse_voight(cc)
+            energy += self.extra_strain_coeffs[a]*strain[ind[0],ind[1]]*np.prod(bestfitcell)#/np.linalg.det(eye+strain)
+            stress[ind[0],ind[1]] += self.extra_strain_coeffs[a]*np.prod(bestfitcell)
+          else:
+            t = 1.0
+            ts = 1.0
+            for n, i in enumerate(cc):
+                ind = self.reverse_voight(i)
+                t = t * strain[ind[0],ind[1]]
+                if n > 0:
+                  ts = ts * strain[ind[0],ind[1]]
+
+                  
+            ind = self.reverse_voight(cc[0])
+#            print 'eval_strain', a, order, comp, cc, ind, t, self.extra_strain_coeffs[a]
+            if  order == 2:
+              energy += 0.5*self.extra_strain_coeffs[a]*t*np.prod(bestfitcell)#/np.linalg.det(eye+strain)
+#              if ind[0] == ind[1]:
+              stress[ind[0],ind[1]] += 0.5*self.extra_strain_coeffs[a]*np.prod(bestfitcell) * ts
+              stress[ind[1],ind[0]] += 0.5*self.extra_strain_coeffs[a]*np.prod(bestfitcell) * ts
+#              else:
+#                stress[ind[0],ind[1]] += self.extra_strain_coeffs[a]*np.prod(bestfitcell) * ts
+#                stress[ind[1],ind[0]] += self.extra_strain_coeffs[a]*np.prod(bestfitcell) * ts
+                
+            elif  order == 3:
+              energy += 1.0/6.0*self.extra_strain_coeffs[a]*t*np.prod(bestfitcell)#/np.linalg.det(eye+strain)
+              stress[ind[0],ind[1]] += 0.5*0.5*self.extra_strain_coeffs[a]*np.prod(bestfitcell) * ts
+              stress[ind[1],ind[0]] += 0.5*0.5*self.extra_strain_coeffs[a]*np.prod(bestfitcell) * ts              
+            
+
+    stress = stress/ abs(np.linalg.det(A))
+    energy = -energy
+
+#    print 'eval energy strain', energy
+    #    print 'EXTRASTRAIN energy', energy
+#    print 'EXTRASTRAIN stress', stress[0,:]
+#    print 'EXTRASTRAIN stress', stress[1,:]
+#    print 'EXTRASTRAIN stress', stress[2,:]
+#    print 'EXTRASTRAIN strain', strain[0,:]
+#    print 'EXTRASTRAIN strain', strain[1,:]
+#    print 'EXTRASTRAIN strain', strain[2,:]
+    
+    return energy, stress
+
+
+  def solve_magnons(self, qpoint_mat, spins, phi, nonzero, units='meV'):
+
+    if self.magnetic == 0:
+      print 'ERROR, magnons for non-magnetic fitting requested'
+      return 1
+
+
+    correspond, vacancies = self.find_corresponding(self.coords_super, self.coords_super)
+    us0 = np.zeros((self.nat, self.ncells,3),dtype=float)
+    for [c0,c1, RR] in correspond:
+      sss = self.supercell_index[c1]
+      us0[c1%self.nat,sss,:] = np.dot(self.coords_super[c1,:]-RR ,self.Acell_super)
+#      us[c1%self.nat,sss,:] = self.coords_super[c1,:]-RR
+
+
+    spin_mag = np.abs(spins)
+    A = np.zeros(self.nat,dtype=float)
+    
+    print '--------'
+    print 'magnons, input spin_mag'
+    print spin_mag
+    
+    active = []
+    for i in range(spin_mag.shape[0]):
+      if spin_mag[i] > 1e-5:
+        active.append(i)
+        A[i] = spins[i]/spin_mag[i]
+        
+      elif spin_mag[i] < 1e-5:        
+        spin_mag[i] = 100000000000.0   #avoid division by zero issues
+        A[i] = 0.0
+        
+
+
+    nat = len(active)
+
+    print 'A (direction)'
+    print A
+    print '--------'
+    print 'active sites'
+    print active
+    print
+    
+    qnum = qpoint_mat.shape[0]
+    M_q = np.zeros((qnum, self.nat, self.nat),dtype=float)
+    J_q = np.zeros((qnum, self.nat, self.nat),dtype=float)
+
+    J_0 = np.zeros((self.nat, self.nat),dtype=float)
+    M_0 = np.zeros((self.nat, self.nat),dtype=float)
+
+
+    M_active = np.zeros((nat, nat),dtype=float)
+    omega = np.zeros((qnum, nat),dtype=float)
+
+    
+    B = 2 * np.pi * np.linalg.inv(self.Acell)
+
+    atoms = np.zeros(2,dtype=int)
+    ijk = np.zeros(2,dtype=int)
+    ssx = np.zeros(3,dtype=int)
+    cell = np.zeros(3,dtype=int)
+
+
+
+    if self.magnetic_anisotropy != -999:
+      print
+      print 'magnetic_anisotropy', self.magnetic_anisotropy
+      print
+
+    
+    for nq in range(qnum):
+      q = qpoint_mat[nq,:]
+      qcart = np.dot(q, B)
+      
+      for nz in range(nonzero.shape[0]):
+        atoms[:] = nonzero[nz,0:2]
+  #      ijk[:] =   nonzero[nz,2:4]
+        ssx[:] =   nonzero[nz,2:2+3]
+        cell[:] = ssx
+        cell[0] = cell[0] % self.supercell[0]
+        cell[1] = cell[1] % self.supercell[1]
+        cell[2] = cell[2] % self.supercell[2]
+        na=atoms[1]
+        nb=atoms[0]
+        sa=0
+        sb=self.supercell_index_f(cell)
+        nsym = float(len(self.moddict_prim[na*self.nat*self.ncells**2 + sa*self.ncells*self.nat + nb*self.ncells + sb]))
+        for m_count,m in enumerate(self.moddict_prim[na*self.nat*self.ncells**2 + sa*self.ncells*self.nat + nb*self.ncells + sb]):
+
+          cellR = np.dot(m, self.Acell_super)
+
+
+          cart = us0[na,0,:]
+          cartR = us0[nb,sb,:] - cellR
+
+          dcart = cart[:] - cartR[:]
+
+          print qcart, dcart, 'd',np.sum(dcart**2)**0.5, np.cos(np.dot(qcart, dcart))
+          
+          J_q[nq, na, nb ] += phi[nz]/nsym * np.cos(np.dot(qcart, dcart)) / spin_mag[na] / spin_mag[nb]
+
+          if nq == 0:
+            J_0[na, nb ] += phi[nz]/nsym / spin_mag[na] / spin_mag[nb]
+            
+
+
+#        for c1, na1 in enumerate(active):
+#          J_q[nq, na1, na1 ] += self.myphi.magnetic_anisotropy / spin_mag[na1]**2 
+
+#        if nq == 0:
+
+        
+              
+      if nq == 0:
+        for na in range(self.nat):
+          for nb in range(self.nat):
+            M_0[na,na] += J_0[na,nb] * spin_mag[nb] * A[nb]
+        if self.magnetic_anisotropy != -999:
+          for c1, na1 in enumerate(active):
+            M_0[na1, na1 ] += self.magnetic_anisotropy / spin_mag[na1]**2 * A[na1] * 2.0
+          
+
+      for na in range(self.nat):
+        for nb in range(self.nat):
+            
+          M_q[nq, na,nb] = M_0[na,nb] - J_q[nq,na,nb] * spin_mag[nb] * A[na]
+
+      for c1, na1 in enumerate(active): #limit to magnetic elements only
+        for c2, na2 in enumerate(active):
+          M_active[c1,c2] = M_q[nq,na1,na2]
+
+      vals,vects = np.linalg.eig(M_active)
+
+      omega[nq,:] = np.abs(np.real(vals      ))
+      print vals
+
+#    hartree_si = 4.35974394E-18
+#    hplank = 6.62606896E-34 
+        
+#    au_sec = hplank / hartree_si / (2.0 * np.pi)
+#    au_ps = au_sec * 1e12
+#    au_thz = au_ps
+
+#    c_si = 2.99792458E+8
+#    ryd_to_thz = 1.0 / au_thz / (4.0 * np.pi)
+#    ryd_to_cm = 1e10 * ryd_to_thz / c_si 
+
+
+    if units == 'meV':
+      meV  = omega * 13.605869253 * 1000.0
+    else:
+      meV = omega
+
+    print 'done magnon calc, unit', units
+    
+    return meV
+  
+  def load_zeff_model(self, diel, sites, types,  zstars):
+
+    self.use_borneffective = True
+    self.model_zeff = True
+    self.diel = diel
+    self.zeff_dict = {}
+    print
+    print 'enabling model zeff'
+    print diel
+    print
+    for (l1,t2, z) in zip(sites, types,zstars):
+      if type(t2) is str:
+        l2=self.types_dict[t2]
+      else:
+        l2 = t2
+
+        
+      print 'site type', l1, l2
+      print z
+      self.zeff_dict[(l1,int(round(l2)))] = z
+
+#      print 'adding', (l1,int(round(l2))), z
+
+      #      self.zeff_dict[(l1,l2)] = np.eye(3)
+    print '========'
+
+      
+  def setup_borneffective(self, use=True):
+    #Turn on dipole-dipole long range electrostatics
+    self.use_borneffective = use
+
+  def setup_fixedcharge(self, use=True):
+    #Turn on fixed charge long range electrostatics
+    self.use_fixedcharge = use
+
+    
   def generate_cell(self, supercell):
     #Makes a supercell of your choice out of the reference structure
 
@@ -266,6 +685,8 @@ class phi:
 
   def set_supercell(self, supercell, nodist=False):
     #setup a bunch of stuff related to having a supercell
+
+    print 'set_supercell', supercell, nodist
     TIME=[time.time()]
     self.supercell = np.array(supercell,dtype=int)
 
@@ -416,8 +837,8 @@ class phi:
     if forces  == []:
       forces = np.zeros(pos.shape,dtype=float)
 
-    if self.verbosity == 'High':
-
+#    if self.verbosity == 'High':
+    if True:
       print 'original'
       print A
       print types
@@ -429,31 +850,33 @@ class phi:
       print '--'
 
     #this puts data from a smaller supercell into a larger supercell
-    supercell_small = np.zeros(3,dtype=int)
+    supercell_small = np.zeros(3,dtype=float)
     factor = np.zeros(3,dtype=int)
     if len(cell) == 3:
       supercell_small[:] = cell
     else:
       for i in range(3):
-        supercell_small[i] = int(round(np.linalg.norm(A[i,:]) / np.linalg.norm(self.Acell[i,:])))
-      
+        supercell_small[i] = np.linalg.norm(A[i,:]) / np.linalg.norm(self.Acell[i,:])
+        print ['sss',  np.linalg.norm(A[i,:]),np.linalg.norm(self.Acell[i,:]),supercell_small[i]]
+        
     if self.verbosity == 'High':
       print 'supercell detected ss (unfold_supercell)'  + str(supercell_small)
       print 'the reference supercell is ' + str(self.supercell)
     
-
+    print supercell_small
     #Figure out what factors we need to muliply our supercell by.
     for i in range(3):
       testint = float(self.supercell[i]) / float(supercell_small[i])
 
       #look for smallest increase that leaves us equal to or bigger
       for m in range(1, int(round(testint))+2):
-        if m * supercell_small[i] >= self.supercell[i]:
+        if m * supercell_small[i]+1e-5 >= self.supercell[i]:
           factor[i] = m
+          print 'factor', i, m, factor[i], supercell_small[i], self.supercell[i]
           break
       
     ncells_needed = np.prod(factor)
-    supercell_ref = supercell_small * factor
+    supercell_ref = map(int, np.round(supercell_small * factor))
     if self.verbosity == 'High':
     
       print 'factor ' + str(factor)
@@ -461,7 +884,11 @@ class phi:
       print 'new supercell = '+str(supercell_ref)
     nat_supercell_ref = self.nat * np.prod(supercell_ref)
 
+    if type(types) is np.ndarray:
+      types = types.tolist()
+      
     types_new = types*ncells_needed #types are just concatenated
+
     A_new = np.zeros((3,3),dtype=float)
     for i in range(3):
       A_new[i,:] = A[i,:]*factor[i]
@@ -625,6 +1052,178 @@ class phi:
           
     return dmax, dmax_nosym
 
+  def load_fixed_charge(self,fl):
+#setup ewald types
+#fl is either a string with
+#  atom_name1 dZ1
+# or a list with [[atom_name1, dZ1], [...]]
+
+    self.use_fixedcharge = True
+    
+    print 'loading fixed charge'
+    print
+    self.fixedcharge_dict = {}
+
+    if type(fl) is dict:
+      self.fixedcharge_dict = fl
+      for t in self.coords_type:
+        if t not in self.fixedcharge_dict:
+          self.fixedcharge_dict[t] = 0.0
+      return
+    
+    for line in fl:
+
+      if type(line) is str:
+        sp = line.split()
+      else:
+        sp = line
+      if len(sp) == 0:
+        continue
+      if sp[0][0] == '#':
+        continue
+      self.fixedcharge_dict[sp[0]] = float(sp[1])
+      print 'adding fixedcharge', sp[0], float(sp[1])
+
+    self.fixedcharge_sites = [] #sites where cluster expansion is allowed
+    for i in range(self.nat):
+      if self.coords_type[i] in self.fixedcharge_dict:
+        self.fixedcharge_sites.append(i)
+    print 'fixedcharge_sites',self.fixedcharge_sites
+
+    for i in range(self.nat):
+      if self.coords_type[i] not in self.fixedcharge_dict:
+        self.fixedcharge_dict[self.coords_type[i]] = 0.0
+
+    
+
+    
+    print
+
+  def eval_fixedcharge(self, types, u, strain, Aref, refpos):
+#evaluates the fixed fixedcharge contributions
+
+     
+
+#    if Aref is None:
+#      supercell_ref = self.find_best_fit_cell(A)
+#      Aref = np.zeros((3,3),dtype=float)
+#      Aref[0,:] = self.Acell[0,:]*supercell_ref[0]
+#      Aref[1,:] = self.Acell[1,:]*supercell_ref[1]
+#      Aref[2,:] = self.Acell[2,:]*supercell_ref[2]
+
+#    print 'fixed types', types
+#    print 'fixed u', u
+#    print 'fixed strain', strain
+#    print 'fixed Aref', Aref
+#    print 'fixed refpos', refpos
+#    print
+    
+    nat = u.shape[0]
+#    nat = self.coords.shape[0]
+    diel = self.dyn.eps
+    diel = (diel + diel.T)/2.0
+
+#    vals, vects = np.linalg.eig(diel)
+
+#    Aref_d = np.dot(Aref, np.conj(vects.T))
+
+#    Aref_d[0,:] = Aref_d[0,:] * vals[0]**0.5
+#    Aref_d[1,:] = Aref_d[1,:] * vals[1]**0.5
+#    Aref_d[2,:] = Aref_d[2,:] * vals[2]**0.5
+
+    Aref_d = Aref
+
+    diel_const = np.mean([diel[0,0], diel[1,1],diel[2,2]])
+
+#    print 'diel_const',diel_const
+#    print 
+    dZ = np.zeros(nat,dtype=float)
+
+    zstar = np.zeros((nat, 3, 3), dtype=float)
+
+    beta = 7.5
+    
+#    print 'fixed charge types'
+#    print types
+#    print 'self.fixedcharge_dict.keys()'
+#    print self.fixedcharge_dict.keys()
+    for i,t in enumerate(types):
+#      print i,t
+      dZ[i] = self.fixedcharge_dict[t] 
+      if type(t) is str:
+#        print (i%self.nat,self.types_dict[t])
+        zstar[i,:,:] = self.zeff_dict[(i%self.nat,self.types_dict[t])]
+      else:
+        zstar[i,:,:] = self.zeff_dict[(i%self.nat,int(round(t)))]
+
+#      print 'make zstar', i, t, zstar[i,0,0]
+
+        
+    found = False
+    for [AA,S,F, Sigma] in self.fixedcharge_list: #see if we calculated already
+      if np.sum(np.sum(np.abs(AA-Aref))) < 1e-5:
+        found = True
+        print 'FOUND FIXED'
+        Aref_d = AA
+        B = 2*np.pi*np.linalg.inv(Aref_d).T
+        vol = abs(np.linalg.det(Aref_d))
+        
+        break
+
+    if found == False: #we need to calculate
+
+      B = 2*np.pi*np.linalg.inv(Aref_d).T
+      vol = abs(np.linalg.det(Aref_d))
+
+      S = np.zeros((nat,nat),dtype=float, order='F')
+      F = np.zeros((nat,nat,3),dtype=float, order='F')
+      Sigma = np.zeros((nat,nat,3,3),dtype=float, order='F')
+
+      print 'MAKE FIXED'
+      t1 = time.time()
+      ewald(S, F, Sigma, Aref_d, 2.0*np.pi*np.linalg.inv(Aref_d).T, refpos, [4,4,4], vol, beta, nat)
+
+      S = S/diel_const
+      F = F/diel_const
+      Sigma = Sigma / diel_const
+#      print 'MADE FIXED', time.time()-t1
+
+      self.fixedcharge_list.append([copy.copy(Aref), copy.copy(S), copy.copy(F), copy.copy(Sigma)])
+      
+    energy = np.zeros(1,dtype=float, order='F')
+    forces = np.zeros((nat,3),dtype=float, order='F')
+    stress = np.zeros((3,3),dtype=float, order='F')
+
+#    print 'EVAL FIXED'
+    t1 = time.time()
+#    print 'fixed dZ', dZ
+#    print 'fixed S', S[0:6, 0:6]
+#    print 'fixed diel', diel_const
+#    print 'fixed beta', beta
+#    print 'fixed ushape', u.shape
+    eval_ewald(energy, forces, stress, S, F, Sigma, dZ, zstar, u, strain,  beta,diel_const, nat)
+#    print 'EVALED FIXED', time.time() - t1, 'energy', energy[0]
+
+    if self.zero_fixed == -9999:
+      self.zero_fixed = energy / forces.shape[0]
+
+
+#    print 'energy phi eval_ewald: energy, zero_fixed, tot', energy, self.zero_fixed, energy - self.zero_fixed * forces.shape[0]
+    energy = energy - self.zero_fixed * forces.shape[0]
+
+    
+    stress = stress/vol 
+    forces = -forces 
+    energy = energy 
+
+#    print 'eval_ewald stress'
+#    print stress
+    
+    return energy[0], forces, stress
+
+
+    
+
   def load_types(self,fl):
 # figures out what atoms are part of cluster expansion. For example, for Si plus Ge atoms substituated, takes in file contents formatted like:
 #
@@ -635,7 +1234,12 @@ class phi:
     self.reverse_types_dict = {}
 
     for line in fl:
-      sp = line.split()
+
+      if type(line) is str:
+        sp = line.split()
+      else:
+        sp = line
+
       if len(sp) == 0:
         continue
       if sp[0][0] == '#':
@@ -643,12 +1247,21 @@ class phi:
       self.types_dict[sp[0]] = int(sp[1])
       self.reverse_types_dict[int(sp[1])] = sp[0]
 
-
+    print 'types dict'
+    print self.types_dict
+    self.cluster_types = self.types_dict.keys()
     self.cluster_sites = [] #sites where cluster expansion is allowed
     for i in range(self.nat):
       if self.coords_type[i] in self.types_dict:
+        print self.coords_type[i]
         self.cluster_sites.append(i)
-    
+
+    for i in range(self.nat):
+      if self.coords_type[i] not in self.types_dict:
+        self.types_dict[self.coords_type[i]] = 0
+        
+
+        
 #    if self.verbosity == 'High':
     print 'Cluster sites:'
     print self.cluster_sites
@@ -667,29 +1280,62 @@ class phi:
     print self.types_dict
     print
     
-  def calc_polarization(self, u_crys, A = None):
+  def calc_polarization(self, coords, coords_ref, types, strain, supercell):
     #takes in crystal coords in primitive cell, calculates polarization in a.u.
     # this is obviously only the polarization due to atoms moving with constant born effective charge
-    if self.useewald == False:
+    if self.use_borneffective == False:
       print 'warning cannot calculate polarization without born effective charges'
       return 0.0,0.0
 
-    if not hasattr(A, "__len__"): #default
+#    if not hasattr(A, "__len__"): #default
 
-      A = self.Acell
+#      A = self.Acell
 
-    u_bohr = np.dot(u_crys - self.coords_hs, A)
+#    if types is None:#
+#
+#      types = np.zeros(u_crys.shape[0],dtype=float)
 
-    zu = np.zeros((self.nat,3),dtype=float)
-    for i in range(self.nat):
-      zu[i,:] = np.dot(u_bohr[i,:] , self.dyn.zstar[i])
+    At=np.dot(self.Acell, np.eye(3)+strain)
+    A = np.zeros((3,3),dtype=float)
+    for i in range(3):
+      A[i,:] = At[i,:]*self.supercell[i]
+    
 
-    physical_polarization = np.sum(zu,0) / abs(np.linalg.det(self.Acell))
+    u_bohr = np.dot(coords - coords_ref, A)
 
-    et = np.dot(np.linalg.inv(self.Acell),A) - np.eye(3)
-    strain =  0.5*(et + et.transpose())
+    nat=coords.shape[0]
+    ncells = coords.shape[1]
 
-    reduced_polarization = np.dot(np.linalg.inv(np.eye(3)+strain), physical_polarization)
+    zu = np.zeros((nat, ncells ,3),dtype=float)
+
+    if types is None or (self.model_zeff == False):
+      for i in range(nat):
+        for j in range(ncells):
+          zu[i,j,:] = np.dot(u_bohr[i,j,:] , self.dyn.zstar[i])
+
+    else:
+
+      for i in range(nat):
+        for j in range(ncells):
+          if self.magnetic > 0:
+            t = 0
+          else:
+            t=int(round(types[i,j]))
+            
+          zstar = self.zeff_dict[(i,t)]
+
+          
+          zu[i,j,:] = np.dot(u_bohr[i,j,:] , zstar)
+      
+      
+
+    
+    physical_polarization = np.sum(np.sum(zu,0),0) / abs(np.linalg.det(self.Acell_super))
+
+    print physical_polarization
+    print np.linalg.inv(np.eye(3)+strain)
+    
+    reduced_polarization = np.dot( physical_polarization, np.linalg.inv(np.eye(3)+strain))
 
     
     return reduced_polarization, physical_polarization
@@ -706,6 +1352,21 @@ class phi:
     else:
       A,types,pos,forces,stress, energy= load_output(fl)
 
+      if abs(energy - -99999999) < 1e-5:
+        A,ct,pos, types, masses = load_atomic_pos(fl)
+        forces=np.zeros(pos.shape)
+        flin=True
+      else:
+        flin=False
+        
+      print 'A'
+      print A
+      print 'types'
+      print types
+      print 'pos'
+      print pos
+
+        
     bestfitcell = self.find_best_fit_cell(A)
 
     A,types,pos,forces, stress, energy, supercell_ref, refA, refpos, bf = self.unfold(A,types,pos,bestfitcell,forces,stress, energy)
@@ -723,9 +1384,13 @@ class phi:
     nat_input = pos.shape[0]
     nat_cell = np.prod(newcell)*self.nat
 
+
+      
     if bestfitcell[0,1] != 0 or bestfitcell[0,2] != 0 or bestfitcell[1,2] != 0 or bestfitcell[1,0] != 0 or bestfitcell[2,0] != 0 or bestfitcell[2,1] != 0 or nat_cell != nat_input:
 
       print 'non-orthogonal supercell detected'
+      print bestfitcell
+      
       needed_super = [max(bestfitcell[0,:]), max(bestfitcell[1,:]), max(bestfitcell[2,:])]
 
       if (nat_cell != nat_input) and (bestfitcell[0,1] == 0 and bestfitcell[0,2] == 0 and bestfitcell[1,0] == 0 and bestfitcell[2,0] == 0 and bestfitcell[2,1] == 0 and bestfitcell[1,2] == 0):
@@ -736,14 +1401,18 @@ class phi:
         coords_super = self.coords_super
 
 
+      
       natold = pos.shape[0]
-      pos, A, types, newcell, forces = self.find_corresponding_non_diagonal(coords_super,pos, Acell_super, A, types, forces)
+      pos, A, types,  combo, forces = self.find_corresponding_non_diagonal(coords_super,pos, Acell_super, A, types, forces)
       energy = energy *  float(pos.shape[0]) /   float(natold) 
 
+      print 'energy in unfold, ', energy, float(pos.shape[0]),float(natold)
+      
       bestfitcell_new = self.find_best_fit_cell(A)
       bestfitcell = np.diag(bestfitcell_new).tolist()
 
       if self.verbosity == 'High':
+#      if True:
         print '-----new cell------ ' 
         print A
         print pos
@@ -788,10 +1457,23 @@ class phi:
     strain = S - np.eye(3)
 
     if self.verbosity == 'High':
+      print 'refA'
+      print refA
+      print 'A'
+      print A
+      
+      print 'M'
+      print M
+      print 'S2'
+      print S2
+      print 'S'
+      print S
       print 'rotmat ' , np.linalg.det(rotmat)
       print rotmat
       print
-
+      print 'strain'
+      print strain
+      
     A = np.dot(refA, np.eye(3) + strain) #derotated A
 
     invrotmat = np.linalg.inv(rotmat)
@@ -841,26 +1523,30 @@ class phi:
     ncalc_new = self.add_to_file_list(fl)
     return ncalc_new
 
-  def add_to_file_list(self,fl):
+  def add_to_file_list(self,fl, simpleadd = False):
 
-    time1 = 0 #timing information
-    time2 = 0
-    time3 = 0
-    time4 = 0
-    time5 = 0
-    time6 = 0
-    time7 = 0
-    time8 = 0
-    time9 = 0
+    time1 = 0.0 #timing information
+    time2 = 0.0
+    time3 = 0.0
+    time4 = 0.0
+    time5 = 0.0
+    time6 = 0.0
+    time7 = 0.0
+    time8 = 0.0
+    time8a = 0.0
+    time9 = 0.0
 
     self.previously_added = len(self.energy)
     ncalc = self.previously_added
     ncalc_new = 0
 
+    t00clock = time.time()    
+    
     for line in fl:
       
-      t0clock = time.time()
 
+      t0clock = time.time()    
+      
 
       #This is the key loading from file line
       if type(line) is str:
@@ -868,7 +1554,8 @@ class phi:
       else:
         if type(line) is not list:
           SP = [line]
-        
+        else:
+          SP = line
 #      A,types,pos,forces,stress,energy = load_output(line.strip('\n').strip())
 
 
@@ -881,24 +1568,47 @@ class phi:
 
       print 'Loading ' + str(SP[0])
 
-#      A,types,pos,forces,stress,energy = load_output(SP[0])
-      A_big,types_big,pos_big,forces_big,stress_big,energy_big = load_output_both(SP[0], self.relax_load_freq)
+      #      A,types,pos,forces,stress,energy = load_output(SP[0])
 
-#
- #     print A_big,types_big,pos_big,forces_big,stress_big,energy_big
+      try:
+        A_big,types_big,pos_big,forces_big,stress_big,energy_big = load_output_both(SP[0], self.relax_load_freq)
+
+        if self.verbosity == 'High':
+          print 'A_big'
+          for a in A_big:
+            print a
+            print
+          print '--'
+          
+        #        print 'types_big'
+#        print types_big
+      except:
+        print 'skipping due to failure to load properly ', SP[0]
+        continue
+
+#      print 'types_big'
+#      print types_big
+      
+      #
+#      print 'qwqwqwqw'
+#      print A_big,types_big,pos_big,forces_big,stress_big,energy_big
 
       if A_big is None:
         print 'Failed to load '+str(SP[0])+', attempting to continue1'
         continue
 
-
+      t0Aclock = time.time()    
+      time1 += t0Aclock - t0clock
+      
       for cc, (A,types,pos,forces,stress,energy) in enumerate(zip(A_big,types_big,pos_big,forces_big,stress_big,energy_big)):
-
+        print 'loaded energy', energy
         if abs(energy - -99999999) < 1e-5:
           print 'Failed to load '+str(SP[0])+', calc'+str(cc)+', attempting to continue2'
           continue
 
-
+        if self.noforces == True:
+          forces[:,:] = 0.0
+          
         ncalc+=1
 
   #      print 'input energy', energy
@@ -926,17 +1636,40 @@ class phi:
             forces1 = np.tile(forces1, (n,1))
             energy1 = energy1 * n
 
-          forces = (forces - forces1)
-
-          energy = energy - (energy1  - self.energy_ref * pos.shape[0] / self.nat   ) 
-
+          if simpleadd == False:
+            forces = (forces - forces1)
+            energy = energy - (energy1  - self.energy_ref * pos.shape[0] / self.nat   ) 
+          elif simpleadd == True:
+            forces = np.zeros(forces.shape,dtype=float)
+            energy = 0.0
+            
         elif len(SP) == 5:
           self.useweights = True
 #          self.weights.append(float(SP[1]))
           weight = float(SP[1])
-          bestfitcell_input = map(int, SP[2:5])
+          bestfitcell_input = SP[2:5]   ##map(int, SP[2:5])
           print 'input cell: ' + str(bestfitcell_input)
+        elif len(SP) == 6:
+          self.useweights = True
+#          self.weights.append(float(SP[1]))
+          weight = float(SP[2])
+          bestfitcell_input = SP[3:6]   ##map(int, SP[2:5])
+          print 'input cell: ' + str(bestfitcell_input)
+          A1,types1,pos1,forces1,stress1,energy1 = load_output(SP[1])
 
+          if forces.shape[1] < forces.shape[0]:
+            n = int(forces.shape[0]/forces1.shape[0])
+            forces1 = np.tile(forces1, (n,1))
+            energy1 = energy1 * n
+
+          if simpleadd == False:
+            forces = (forces - forces1)
+            energy = energy - (energy1  - self.energy_ref * pos.shape[0] / self.nat   ) 
+          elif simpleadd == True:
+            forces = np.zeros(forces.shape,dtype=float)
+            energy = 0.0
+
+          
         t2clock = time.time()
 
   #      print 'energy2', energy
@@ -945,7 +1678,24 @@ class phi:
 
         #if we haven't been given the cell size, try to figure it out
         if len(bestfitcell_input) == 3:
-          bestfitcell = np.diag(bestfitcell_input)
+#          bestfitcell = np.diag(bestfitcell_input)
+
+          bestfitcell_input = map(float, bestfitcell_input)
+          print 'bestfitcell_input', bestfitcell_input
+          
+          if bestfitcell_input[0] < 0.9999 or bestfitcell_input[1] < 0.9999 or bestfitcell_input[2] < 0.9999:
+            A,types,pos,forces,stress,energy, factor = self.unfold_to_supercell(A, pos,types, forces, stress, energy, cell=bestfitcell_input)        
+            print 'factor', factor
+            for i in range(3):
+              bestfitcell_input[i] = int(bestfitcell_input[i]*factor[i])
+
+          print 'XXXXXXXXXXXXXXX ',bestfitcell_input
+          bestfitcell = np.diag(map(int,bestfitcell_input))
+          print 'XXXXXXXXXXXXXXX2 ',bestfitcell
+          print 'A'
+          print A
+          print types
+          
         else:
           bestfitcell = self.find_best_fit_cell(A)
 
@@ -995,7 +1745,12 @@ class phi:
 ###        print 'bestfitcell_new_small',bestfitcell_new_small
 
 
+#        print 'pos before unfold'
+#        print pos
+
+        print 'energy before unfold', energy
         A,types,pos,forces, stress, energy, supercell_ref, refA, refpos, bestfitcell = self.unfold(A, types, pos, bestfitcell,forces, stress, energy)
+        print 'energy after unfold', energy, bestfitcell
 
 
 
@@ -1128,23 +1883,31 @@ class phi:
 
         t7clock = time.time()
 
+#        print 'stress0'
+#        print stress
+
+        
         energy_orig=energy
-        if self.useewald == True:
-          energy_es, forces_es, stress_es = self.run_dipole_harm(A,pos, refA, refpos)
+        if self.use_borneffective == True and simpleadd == False:
+          energy_es, forces_es, stress_es = self.run_dipole_harm(A,pos, refA, refpos, types=types)
           energy -= energy_es
 
           if self.verbosity == 'High':
 
             print 'energy short range ' + str(energy-self.energy_ref*np.prod(supercell_ref))
-            print 'energy_es', energy_es
-            print 'forces es'
-            print forces_es
+            print 'energy_es load', energy_es
+#            print 'forces es'
+#            print forces_es
 
           forces -= forces_es
           stress -= stress_es
 
+#          print 'stress_es'
+#          print stress_es
 
-
+#        print 'stress_new'
+#        print stress
+          
 
         nat_ref = refpos.shape[0]
         u = np.zeros((nat_ref,3),dtype=float)
@@ -1153,9 +1916,14 @@ class phi:
         fu = np.zeros((nat_ref,3),dtype=float)
         tu = np.zeros(nat_ref,dtype=int)
 
-
+        types_reorder = []
+        for t in range(nat_ref):
+          types_reorder.append('x')
+          
         #put things into their correct places
+#        print 'correspond'
         for c in correspond:
+#          print c
           u[c[1],:] = np.dot(pos[c[0],:] + c[2],A) - np.dot(refpos[c[1],:] , A)
           crystal_coords[c[1],:] = pos[c[0],:] + c[2]
           uold[c[1],:] = np.dot(refpos[c[1],:] , refA)
@@ -1172,28 +1940,66 @@ class phi:
           if len(self.types_dict ) > 0:
             if types[c[0]] in self.types_dict:
               tu[c[1]] = self.types_dict[types[c[0]] ]
-
+              types_reorder[c[1]] = types[c[0]]
         types_count = np.sum(tu)
+        t8clock = time.time()
 
-
-        energy_new = energy_orig-self.energy_ref*np.prod(supercell_ref) - self.doping_energy * types_count
         
+        if self.use_fixedcharge == True  and simpleadd == False:
+          print 'using fixed charge'
+#          print 'types_reorder'
+#          print types_reorder
+          energyf, forcesf, stressf = self.eval_fixedcharge(types_reorder, u, strain, refA, refpos)
+
+#          print 'energy f', energyf, SP[0]
+
+#          print 'sum abs forces before', np.sum(np.sum(np.abs(forces)))
+#          print 'sum abs forces forcesf', np.sum(np.sum(np.abs(forcesf)))
+
+#          print 'forces before'
+#          print forces
+#          print 'forcesf'
+#          print forcesf
+
+#          print 'energy before', energy
+#          print 'energyf', energyf
+          
+          energy -= energyf
+          fu -= forcesf
+          stress -= stressf
+
+#          print 'sum abs forces after', np.sum(np.sum(np.abs(fu)))          
+        
+#          print 'stressf'
+#          print stressf
+#          print 'stress_new2'
+#          print stress
+
+        if simpleadd == False:  
+          energy_new = energy_orig-self.energy_ref*np.prod(supercell_ref) - self.doping_energy * types_count
+        else:
+          energy_new = 0.0
+          
         if energy_new > self.energy_limit:
           print 'entry above energy limit : ', energy_new, ' > ', self.energy_limit
           if energy_new < self.energy_limit*1.5:
             print 'above limit, weight much lower'
-            weight = 1e-3
+            weight = min(1e-3, weight)
           else:
             print 'discarding'
             continue
 
 
 
-        t8clock = time.time()
+        t8aclock = time.time()
 
 
         if self.verbosity == 'High':
 
+          print 'u'
+          print u
+
+          
           print 'types'
           print types
 
@@ -1212,6 +2018,8 @@ class phi:
   #      self.stress.append(stress-self.stress_ref)
         self.weights.append(weight)
 
+#        print 'append weight ', weight
+        
         self.Alist.append(copy.copy(A))
         self.strain.append(copy.copy(strain))
 
@@ -1220,7 +2028,12 @@ class phi:
         self.POSold.append(uold)
         self.crystal_coords.append(crystal_coords)
         self.TYPES.append(tu)
-#        print 'typetype', type(supercell_ref), type(bestfitcell_new_small)
+
+
+        umean = np.mean(u, 0)
+        print 'umax', np.max(np.max(np.abs(u-np.tile(umean, (u.shape[0],1))))), SP[0], umean
+        print 'smax', np.max(np.max(abs(strain))), [strain[0,0], strain[1,1], strain[2,2], strain[1,2], strain[0,2], strain[0,1]]
+        #        print 'typetype', type(supercell_ref), type(bestfitcell_new_small)
 
 #        print 'supercell_ref',supercell_ref
 #        print 'bestfitcell',bestfitcell
@@ -1235,8 +2048,11 @@ class phi:
         print
   #      self.F.append(fu-self.forces_ref[0:refpos.shape[0],:])
         self.F.append(fu)
-        self.energy.append(energy-self.energy_ref*np.prod(supercell_ref) - self.doping_energy * types_count)
-
+        if simpleadd == False:
+          self.energy.append(energy-self.energy_ref*np.prod(supercell_ref) - self.doping_energy * types_count)
+        else:
+          self.energy.append(0.0)
+          
         ncalc_new += 1
 
         if self.verbosity == 'High':
@@ -1246,7 +2062,7 @@ class phi:
         t9clock = time.time()
 
 
-        time1 += t1clock-t0clock
+#        time1 += t1clock-t0clock
         time2 += t2clock-t1clock
         time3 += t3clock-t2clock
         time4 += t4clock-t3clock
@@ -1254,23 +2070,29 @@ class phi:
         time6 += t6clock-t5clock        
         time7 += t7clock-t6clock
         time8 += t8clock-t7clock
-        time9 += t9clock-t8clock
-
+        time8a += t8aclock-t8clock
+        time9 += t9clock-t8aclock        
+        if  self.verbosity == 'High':
+          print 'loadtime ' , str(SP[0]), [t2clock-t1clock, t3clock-t2clock,t4clock-t3clock ,t5clock-t4clock , t6clock-t5clock,t7clock-t6clock ,t8clock-t7clock ,t8aclock-t8clock, t9clock-t8aclock]
     if self.verbosity == 'High':
+      t9clock = time.time()
       print 'Loading timing : '
-      print '  load_output        ' + str(time1)
+      print '  total:             ' + str(t9clock - t00clock)
+      print '  load_output_both   ' + str(time1)
       print '  load_output ref    ' + str(time2)
       print '  bestfitcell        ' + str(time3)
       print '  nondiagonal        ' + str(time4)
       print '  unfold, generate   ' + str(time5)
       print '  move stuff, output ' + str(time6)
-      print '  dipole             ' + str(time8)
       print '  find corresponding ' + str(time7)
+      print '  dipole             ' + str(time8)
+      print '  fixed             ' + str(time8a)
       print '  put stuff in lists ' + str(time9)
 
     print '---'
     print 'ncalc loaded:' + str( ncalc)
 
+    
     self.set_unitsize(self.natsuper)
 
     if ncalc_new == 0:
@@ -1279,8 +2101,48 @@ class phi:
 
     return ncalc_new
 
+
+#  def systematic_cell_search(A, pos, types, forces, energy):
+#
+#    slist = [1.0/4.0, 1.0/3.0, 1.0/2.0] + range(1, 11) #+ [-1.0/4.0, -1.0/3.0, -1.0/2.0] + range(-10, 0)
+#    
+#    At = np.zeros((3,3),dtype=float)
+#    bestscore = 100000000000.0
+#    match = [0,0,0]
+#    for x in slist:
+#      for y in slist:
+#        for z in slist:
+#          At[0,:] = self.Acell[0,:] * x
+#          At[1,:] = self.Acell[1,:] * y
+#          At[2,:] = self.Acell[2,:] * z
+#
+#          score = 0.0
+#          for i in range(3):
+#            score += np.sum((At[i,:] - A[i,:])**2)
+#            if score < bestscore:
+#              match = [x,y,z]
+#              bestscore = score
+#    print 'bestscore', bestscore, match
+#
+#    Anew = A
+#    
+#    ftot= 1.0
+#    for i in range(3):
+#      f = round(self.supercell[i] / match[i])
+#      print i, 'f', f
+#      Anew[i,:] = Anew[i,:] * f
+#      ftot = ftot * f
+#
+#    energy = energy * ftot
+    
+      
+        
+    
+    
+  
   def set_unitsize(self,natsuper):
         #this sets up now big our fitting matricies will be
+    print 'set_unitsize', natsuper
     
     if self.usestress:
       self.unitsize = 3*natsuper + 6
@@ -1343,7 +2205,7 @@ class phi:
     self.set_supercell(supercell)
     
     correspond, vacancies = self.find_corresponding(pos, self.coords_super)
-    pos, types = self.fix_vacancies(vacancies, pos, correspond, types)
+    pos, types, correspond = self.fix_vacancies(vacancies, pos, correspond, types)
     
     u = np.zeros((pos.shape[0],3),dtype=float)
     u_super = np.zeros((self.nat, np.prod(supercell),3),dtype=float)
@@ -1356,10 +2218,15 @@ class phi:
       if types != []:
         types_s[c1] = types[c0]
 
-    return u, types_s, u_super, supercell
+    if types != []:
+      types = []
+      for i in range(pos.shape[0]):
+        types.append(types_s[i])
+        
+    return u, types, u_super, supercell
 
 
-  def find_corresponding(self,pos1,pos2, Aref=[]):
+  def find_corresponding(self,pos1,pos2, Aref=[], low_memory=False):
     #This program lines up the positions in pos1 with pos2, looking for the closest atom in each case
     #and taking into account PBCs.
     #This allows atoms to be interchanged in an inputfile and we can still figure out what to do.
@@ -1371,25 +2238,75 @@ class phi:
 #    print 'start correspond'
     natsuper = pos2.shape[0]
     TIME.append(time.time())
-    dist_array, dist_array_R, dist_array_R_prim, dist_array_prim, moddict, moddict_prim =  make_dist_array(pos1, Aref, self.nat, natsuper, self.supercell, self.supercell_index, pos2)
-    TIME.append(time.time())
 
-    for at_new in range(pos1.shape[0]):
-      dmin = 10000000.0
-      for at_hs in range(natsuper):
-#        dist,R,sym = self.dist(pos1[at_new,:], pos2[at_hs,:], Aref)
-        dist = dist_array[at_new, at_hs]
-        R = dist_array_R[at_new,at_hs]
-        if dist < dmin:
-          dmin = dist
-          at = [at_new, at_hs, R]
-#          print 'corr ' + str([at_new, at_hs, pos1[at_new,:], pos2[at_hs,:], R, dmin])
+#    print 'pos1'
+#    print pos1
 
-      if self.verbosity == 'High':
-        print 'correspond ' + str(dmin) + ' ' + str([pos1[at[0],:], pos2[at[1],:]]) + ' ' + str(at)
-      correspond.append(copy.copy(at))
+    
+    if low_memory == True:
+
+      dist_min = np.zeros(pos1.shape[0], dtype=int, order='F')
+      dist_dist_min = np.zeros(pos1.shape[0], dtype=float, order='F')
+      dist_R_min = np.zeros((pos1.shape[0],3), dtype=float, order='F')
+
+#      print pos1.shape
+#      print pos2.shape
+#      print Aref.shape
+#      print dist_min.shape
+#      print dist_dist_min.shape
+#      print dist_R_min.shape
+      
+      make_dist_array_fortran_parallel_lowmemory(pos1, pos2, Aref,dist_min, dist_dist_min, dist_R_min, pos1.shape[0], pos2.shape[0])
+      for at_new in range(pos1.shape[0]):
+        dmin = dist_dist_min[at_new]
+        at_hs = dist_min[at_new]
+        R = dist_R_min[at_new,:]
+        at = [at_new, at_hs, R]
+  #          print 'corr ' + str([at_new, at_hs, pos1[at_new,:], pos2[at_hs,:], R, dmin])
+        correspond.append(copy.copy(at))
+
+      
+
+    else:
+      dist_array, dist_array_R, dist_array_R_prim, dist_array_prim, moddict, moddict_prim =  make_dist_array(pos1, Aref, self.nat, natsuper, self.supercell, self.supercell_index, pos2)
+      TIME.append(time.time())
+
+      for at_new in range(pos1.shape[0]):
+        dmin = 10000000.0
+        for at_hs in range(natsuper):
+  #        dist,R,sym = self.dist(pos1[at_new,:], pos2[at_hs,:], Aref)
+          dist = dist_array[at_new, at_hs]
+          R = dist_array_R[at_new,at_hs]
+          if dist < dmin:
+            dmin = dist
+            at = [at_new, at_hs, R]
+
+#        print 'corr ' + str([at_new, at[1], pos1[at_new,:], pos2[at[1],:], R, dmin])
+
+        if self.verbosity == 'High':
+          print 'correspond ' + str(dmin) + ' ' + str([pos1[at[0],:], pos2[at[1],:]]) + ' ' + str(at)
+        correspond.append(copy.copy(at))
 
 
+    count_hs = np.zeros(natsuper,dtype=int)
+    for c in correspond:
+      count_hs[c[1]] += 1
+
+
+    if np.max(count_hs)  > 1: #we have a messed up correspond, we will try to fix the issue
+      two = np.where(count_hs==2)
+      zero = np.where(count_hs==0)
+
+      print 'warning - something messed up in correspond ', two, zero
+      
+#      if low_memory == False:
+#        for t in two:
+#          c0 = np.argmin(dist_array[:, t])
+#          for c in correspond:
+#            if c[1] == t and c[0] != c0:
+ #             c[0] = zero
+
+        
       #deal with vacancies
     nvac = natsuper-pos1.shape[0]
     vacancies = []
@@ -1762,6 +2679,8 @@ class phi:
     if dim[1] < 0: #activate special anharmonic mode
 
       dim_an = copy.copy(dim[1])
+      dim0_old = dim[0]
+      dim[0] = 0
       dim[1] = 2
       bodycount=2
       approx_anharm = True
@@ -1840,12 +2759,15 @@ class phi:
     #transforms into another group already on our list, that it is part of that group.
 
     groups = []
+
+    alreadyfound = set()
+    
     for aa in range(nonzero_atoms): #loop over sets of atoms
       found=False
       a=atomlist[aa,0]
       atoms = atomlist[aa,1:]
       
-#      print 'atoms', atoms
+      print 'atoms', atoms
 
       pp = sorted(atoms)
       body = 1
@@ -1896,6 +2818,16 @@ class phi:
       if zerodist == True:
         continue
 
+      if approx_anharm:
+        good = True
+        for dd in range(dim0_old):
+          if atoms[dd] not in self.cluster_sites:
+            good = False
+            break
+          
+        if good == False:
+          continue
+
 #      print 'a4'
 
       #pbc issues. we don't allow 3body+ terms that loop around periodic boundary conditions, as they are not physical. every atom must be close to atom[0] without shifting by different lattice vectors
@@ -1938,17 +2870,28 @@ class phi:
 #           print 'remove for triple dist reasons phi_prim_usec'
 #           continue
 
-
+      if body > bodycount:
+        continue
 
       if len(groups) > 0:
-        
 
+      #      print 'check', tuple(atoms.tolist())
+      #      if tuple(atoms.tolist()) not in alreadyfound:
+        
         for ps in range(permutedim_s):
           for pk in range(permutedim_k):
             for count in range(len(self.CORR)):
               atoms_new = ATOMS_P_alt[((aa)*permutedim_k*permutedim_s + ps*permutedim_k + pk)*self.nsymm + count,:].tolist()
+#              print 'add', tuple(atoms_new), ((aa)*permutedim_k*permutedim_s + ps*permutedim_k + pk)*self.nsymm + count
+#              alreadyfound.add(tuple(atoms_new))
+
+
+#        print 'add to list', atoms.tolist()
+#        groups.append(atoms.tolist())
+              
               if atoms_new in groups:
                 found = True
+#                print 'found'
                 break
             if found == True:
               break
@@ -1958,6 +2901,8 @@ class phi:
       if found == False: # if new, add to list
         if body <= bodycount:
           groups.append(atoms.tolist())
+
+        #      else:
 
 #      print 'a6'
 
@@ -1969,7 +2914,7 @@ class phi:
     if not approx_anharm:
       print 'Independent groups of atoms (atom numbers, distance, nbody): '+str(dim)
     else:
-      print 'Groups (approx anharm): '+str([dim[0],dim_an])
+      print 'Groups (approx anharm): '+str([dim0_old,dim_an])
 
     SS = []
     group_dist = []
@@ -2052,7 +2997,9 @@ class phi:
 #    print 'pre_setup_rotation', self.TUnew_rot.shape, self.Ustrain_rot.shape, self.UTT_rot.shape, self.UTT0_strain_rot.shape, self.UTT0_rot.shape, self.UTT_ss_rot.shape
 
   def pre_setup(self):
-#setup some variables we need for fitting
+
+    print 'pre_setup', self.supercell
+    #setup some variables we need for fitting
     self.atomcode, self.TUnew, self.Ustrain, self.UTT,self.UTT0_strain,self.UTT0,  self.UTT_ss, self.atomcode_different_supercell = pre_setup_cython(self)
 #    print 'self.Ustrain'
 #    print self.Ustrain
@@ -2090,20 +3037,33 @@ class phi:
 
     ncalc = len(self.F)-self.previously_added
 
-#    print 'adding ncalc setup_lsq_fast dim', ncalc, len(self.F), self.previously_added, dim
-    
+    #    print 'adding ncalc setup_lsq_fast dim', ncalc, len(self.F), self.previously_added, dim
+
+#    print 'ddddddim', dim
+    dim_s_old = 0
+    if dim[1] < 0:
+      dim_s_old = dim[0]
+      dim = copy.copy(dim)
+      dim[0] = 0
+
     sys.stdout.flush()
-    Umat, ASR = setup_lsq_cython(nind, ntotal_ind, ngroups, Tinv,dim, self, startind,tensordim_k,ncalc, nonzero_list)
+    Umat, ASR = setup_lsq_cython(nind, ntotal_ind, ngroups, Tinv,dim, self, startind,tensordim_k,ncalc, nonzero_list, dim_s_old)
     sys.stdout.flush()
 
 #    print 'Umat setup_lsq_fast ', dim
 #    print Umat[-10:,:]
 
+#    print 'UMAT FFFF', dim, dim_s_old
+#    print Umat
+
     return Umat, ASR
 
 
 
-  def do_lsq(self,UMAT, ASR):
+  def do_lsq(self,UMAT, ASR, multifit = None):
+
+    #    print 'EXTRA UMAT1 ', UMAT[-1, :]
+
 
     #this does the least squares fitting itself.
     #UMAT has all the dependent variables transformed into the correct format
@@ -2119,7 +3079,10 @@ class phi:
     #setup forces matrix Fmat
 
     Weights = np.ones(self.unitsize*ncalc, dtype=float)
+#    print 'weights', Weights
     forces_ind = np.zeros(self.natsupermax*3,dtype=float)
+
+    print 'forces_ind ',self.natsupermax,self.natsupermax*3
     
     keep = []
 
@@ -2127,8 +3090,27 @@ class phi:
     vacancy_constraints = []
     #extra constraints added to force an exact agreement for a data point
     exact_constraints = []
+    ineq_constraints = []
 
+    nextra=0
+    uextra_ind= UMAT.shape[1]   
+    if self.extra_strain: #add extra columns for strain term
 
+      
+      nextra =  len(self.extra_strain_terms)
+      if nextra > 0:
+        uextra_ind = UMAT.shape[1]
+        
+        Unew = np.zeros((UMAT.shape[0], nextra),dtype=float)
+        UMAT = np.concatenate((UMAT, Unew), axis=1)
+
+        if self.useasr:
+          Anew = np.zeros((ASR.shape[0], nextra),dtype=float)
+          ASR = np.concatenate((ASR, Anew), axis=1)
+
+#      print 'EXTRASTRAIN', nextra, uextra_ind
+        
+        
     if self.weight_by_energy:
       self.useweights = True
       emax = np.max(np.abs(self.energy))
@@ -2139,10 +3121,11 @@ class phi:
       print 'weight_by_energy new weights'
       print self.weights
 
+    print 'fitting supercell', self.supercell
 
     #loop over all the forces / stress / energy data
     #this is where we construct the forces/stress/energy data to fit
-    for c,[forces,stress,energy,A,w,type_var] in enumerate(zip(self.F, self.stress,self.energy, self.Alist, self.weights, self.TYPES)):
+    for c,[forces,stress,energy,A,w,type_var,strain] in enumerate(zip(self.F, self.stress,self.energy, self.Alist, self.weights, self.TYPES, self.strain)):
 #      for at in range(self.natsuper):
 
 #this is no longer a warning, since we allow different cells
@@ -2150,6 +3133,11 @@ class phi:
 #        print 'Warning, likely problem. self.natsuper='+str(self.natsuper)+', but forces.shape[0]='+str(forces.shape[0])+' for loaded file c='+str(c)
 
 #      print 'energy ',energy
+
+
+#      print 'weights ', c, w
+
+      print 'CCCCCC', c, forces.shape
 
       nind_indpt = []
       forces_ind[:] = 0.0
@@ -2174,14 +3162,16 @@ class phi:
                       found = True
                       break
           
-          if len(nind_indpt) == 0 or found == False:
+          if (len(nind_indpt) == 0 or found == False) and w > 0:
+#          if True:
             keep.append(c*self.unitsize+at*3+i)
+            print 'xxx', c, at, i, 'forces.shape', forces.shape, 'len(nind_indpt)',len(nind_indpt), forces_ind.shape, w, energy
             forces_ind[len(nind_indpt)] = forces[at,i]
             nind_indpt.append(c*self.unitsize+at*3+i)
                
 
           Fmat[c*self.unitsize+at*3+i] = forces[at,i]
-          Weights[c*self.unitsize+at*3+i] = w
+          Weights[c*self.unitsize+at*3+i] = abs(w)
 
           #vacancy constraint
           if self.vacancy == 1:
@@ -2195,14 +3185,30 @@ class phi:
 #            else:
 #              print 'no vc', c, at, i, forces[at,i], type_var[at]              
 
-              
+      if self.extra_strain and w > 1e-10:
+
+        uextra = self.fitting_strain_term(strain)
+
+#        print 'uextra'
+#        print uextra
+
+        uextra = uextra * forces.shape[0] / self.nat
+#        print 'EXTRASTRAIN uextra',
+#        print uextra
+        n = uextra.shape[0]
+        for i in range(n):
+          UMAT[c*self.unitsize+self.natsupermax*3+i,uextra_ind:uextra_ind+nextra]=uextra[i,:]
+          print 'UMAT ', c, c*self.unitsize+self.natsupermax*3+i,uextra_ind,uextra_ind+nextra
+          #          print 'EXTRASTRAIN adding term', c, i, uextra_ind,uextra_ind+nextra,uextra[i,:]
+
+          
       if self.usestress: #now add stress
         t=0
         for i in range(3):
           for j in range(i,3):
-            Fmat[c*self.unitsize+self.natsupermax*3+t] = stress[i,j]*self.alat**-1  * self.energy_weight #* np.linalg.det(A)
-            UMAT[c*self.unitsize+self.natsupermax*3+t,:] = UMAT[c*self.unitsize+self.natsupermax*3+t,:] / abs(np.linalg.det(A))  * self.energy_weight
-            Weights[c*self.unitsize+self.natsupermax*3+t] = w
+            Fmat[c*self.unitsize+self.natsupermax*3+t] = stress[i,j]*self.alat**-1  * self.energy_weight * self.stress_weight #* np.linalg.det(A)
+            UMAT[c*self.unitsize+self.natsupermax*3+t,:] = UMAT[c*self.unitsize+self.natsupermax*3+t,:] / abs(np.linalg.det(A))  * self.energy_weight * self.stress_weight
+            Weights[c*self.unitsize+self.natsupermax*3+t] = abs(w)
             keep.append(c*self.unitsize+self.natsupermax*3+t)
 
         #we add the constraint stress to make a data point fit exactly
@@ -2217,12 +3223,15 @@ class phi:
         else:
           ind = c*self.unitsize+self.natsupermax*3
         Fmat[ind] = energy * self.energy_weight
-        Weights[ind] = w
+        Weights[ind] = abs(w)
         keep.append(ind)
 
         #we add the constraint energy to make a data point fit exactly
         if c in self.exact_constraint:
           exact_constraints.append([copy.copy(UMAT[ind,:]), energy * self.energy_weight])
+        if c in self.ineq_constraint:
+          print 'adding self.ineq_constraint:'
+          ineq_constraints.append([copy.copy(UMAT[ind,:]), energy * self.energy_weight])
 
 
 ####
@@ -2256,6 +3265,27 @@ class phi:
         ASR = np.concatenate((ASR, exact_mat),axis=0)
         constraint_values = np.concatenate((constraint_values, exact_col),axis=0)
 
+      ineq_values = np.zeros(ASR.shape[0],dtype=float)
+      if len(ineq_constraints) > 0:
+        print 'len ineq_constraints', len(ineq_constraints)
+        Aineq = np.zeros((len(ineq_constraints), ASR.shape[1]),dtype=float)
+        bineq = np.zeros(len(ineq_constraints),dtype=float)
+        for ce, [a,b] in enumerate(ineq_constraints):
+          Aineq[ce,:] = -a
+          bineq[ce] = b
+      else:
+        Aineq = None
+        bineq = None
+          #        ASR = np.concatenate((ASR, exact_mat),axis=0)
+#        constraint_values = np.concatenate((constraint_values, exact_col),axis=0)
+
+    else:
+      constraint_values = []
+      Aineq = None
+      bineq = None
+
+
+      
 ####
 
 ####
@@ -2266,13 +3296,20 @@ class phi:
     c_ediff=0
     if self.useenergy and len(self.energy_differences) > 0:
 
+      if type(self.energy_differences[0]) is int:
+        self.energy_differences = [self.energy_differences]
+      
       print 'energy differences constraint'
       print self.energy_differences
 
+      
+      
       UMAT_add = np.zeros((len(self.energy_differences),UMAT.shape[1]),dtype=float)
       Fmat_add = np.zeros(len(self.energy_differences),dtype=float)
       Weights_add = np.ones(len(self.energy_differences),dtype=float) 
-#      c=0
+      #      c=0
+
+      
       for n1,n2 in self.energy_differences:
         if self.usestress:
           ind1 = n1*self.unitsize+self.natsupermax*3+6
@@ -2318,15 +3355,20 @@ class phi:
 
 
     if self.verbosity == 'High':
+      print 'Umat'
+      for x in range(UMAT.shape[0]):
+        print UMAT[x,:]
       print 'Fmat'
       for x in range(Fmat.shape[0]):
         print Fmat[x]
 
 #    if self.verbosity == 'Med' or self.verbosity == 'High':
 
+#    print 'EXTRA UMAT2 ', UMAT[-1, :]
+
     if self.verbosity == 'High':
     
-      if self.useewald:
+      if self.use_borneffective:
         np.savetxt('UMAT_ewald',-1.0*UMAT)
         np.savetxt('FMAT_ewald',Fmat)
       else:
@@ -2339,7 +3381,96 @@ class phi:
         UMAT[:,i] = UMAT[:,i]*np.sqrt(Weights)
       Fmat = Fmat*np.sqrt(Weights)
 
+      if np.abs(np.min(Weights)) < 1e-5: #if we have zero weights, eliminate entirely.
+        keep = []
+        for i,w in enumerate(Weights):
+          if w > 1e-5:
+            keep.append(i)
+        UMAT = UMAT[keep,:]
+        Fmat = Fmat[keep]
+      
 
+    if multifit is None:
+      phi_indpt =  self.fitting(UMAT, Fmat, ASR, constraint_values, Aineq=Aineq, bineq=bineq)
+    else:
+
+#      print 'multifit[0]',multifit[0]
+#      print 'multifit[1]',multifit[1]
+#      print 'multifit[2]',multifit[2]
+
+      for n in range(UMAT.shape[1]):
+        if n not in multifit[1] and n not in multifit[2] and n not in multifit[0]:
+          multifit[0].append(n)
+          
+      
+
+      step2 = multifit[0] + multifit[2]
+      p_zeros2 = np.zeros((UMAT.shape[1]),dtype=float)
+
+      if Aineq is not None:
+        p2 = self.fitting(UMAT[:,step2], Fmat[:], ASR[:,step2], constraint_values, Aineq=Aineq[:, step2], bineq=bineq)
+      else:
+        p2 = self.fitting(UMAT[:,step2], Fmat[:], ASR[:,step2], constraint_values, Aineq=None, bineq=None)
+        
+      p_zeros2[:] = 0.0
+      p_zeros2[step2] = p2[:]
+#      p_zeros2[multifit[1]] = p_zeros1[multifit[1]]
+
+      phi_indpt = copy.copy(p_zeros2)
+
+      p_zeros2[multifit[2]] = 0.0
+      pred = np.dot(-1.0*UMAT, p_zeros2)
+      Fmat_new = Fmat - pred
+      
+      p_zeros1 = np.zeros((UMAT.shape[1]),dtype=float)
+#      step1 = multifit[0] + multifit[1]
+
+      regression_method_old = self.regression_method.lower()
+      self.regression_method = 'lsq'
+      p1 = self.fitting(UMAT[:,multifit[1]], Fmat_new[:], ASR[:,multifit[1]], constraint_values, Aineq=None, bineq=None)
+      self.regression_method = regression_method_old
+
+#      print 'p1 shape', p1.shape, p_zeros1.shape
+      
+      p_zeros1[multifit[1]] = p1[:]
+#      p_zeros1[multifit[0]] = 0.0
+
+      p_zeros1[p_zeros1 < 0.01] = 0.01
+      
+      print 'p_zeros1', p_zeros1
+      
+#      self.phi_ind_simple = multifit[1]
+
+      self.phi_mf = p_zeros1
+      
+#      pred = np.dot(-1.0*UMAT, p_zeros1)
+#      Fmat_new = Fmat - pred
+
+      
+
+      
+    if self.verbosity == 'High':
+      print 'phi_indpt'
+      print phi_indpt
+
+
+    predicted_forces_energy = np.dot(-1.0*UMAT, phi_indpt)
+
+    if self.verbosity == 'High':
+      print 'predicted_var   reference_var'
+      N = predicted_forces_energy.shape[0]
+      for x in range(N):
+        print str(predicted_forces_energy[x]) + '\t' + str(Fmat[x]) + '\t' + str(predicted_forces_energy[x] - Fmat[x])
+      print '---'
+
+    print 'sum_error rms : ' +str(np.sum((predicted_forces_energy - Fmat)**2)**0.5) + '              ' +str(np.sum(Fmat**2)**0.5)
+    print
+    print 
+
+
+    return phi_indpt
+
+  def fitting(self,UMAT, Fmat, ASR, constraint_values, Aineq=None, bineq=None):
     asr = True
     if self.useasr == False:
       asr = False
@@ -2504,9 +3635,29 @@ class phi:
             eye = np.eye(UMAT.shape[1])*self.alpha_ridge
             UMAT = np.concatenate((UMAT, -eye), axis=0)
             Fmat = np.concatenate((Fmat, np.zeros(UMAT.shape[1])), axis=0)
-            
-          phi_indpt, support = self.run_rfe(-UMAT, Fmat, Aprime, constraint_values)
 
+          if self.oldsupport==False: #normal case
+
+            phi_indpt, support = self.run_rfe(-UMAT, Fmat, Aprime, constraint_values, Aineq=Aineq, bineq=bineq)
+            self.support = support
+
+          else: #we keep the support from a previous rfe run, and just run lsq on the chosen vars
+            print 'using old support'
+            oldsize = UMAT.shape[1]
+            UMAT=UMAT[:,self.support]
+            if Aprime is not None:
+              Aprime=Aprime[:,self.support] 
+            if Aineq is not None:
+              Aineq=Aineq[:,self.support]
+            self.lsq.set_asr(Aprime, constraint_values)
+            self.lsq.set_ineq(Aineq, bineq)
+
+            phi_indpt_support = self.lsq.fit(-UMAT, Fmat)
+
+            phi_indpt = np.zeros(oldsize,dtype=float)
+            phi_indpt[self.support] = phi_indpt_support
+
+              
           t2=time.time()
           if self.verbosity.lower() == 'high':
             print 'RFE time ' , t2-t1
@@ -2520,17 +3671,35 @@ class phi:
             UMAT = np.concatenate((UMAT, -eye), axis=0)
             Fmat = np.concatenate((Fmat, np.zeros(UMAT.shape[1])), axis=0)
 
-            print 'default to least squares regression'
+          print 'default to least squares regression'
 
           #in this case, we don't do lasso at all, and we use all the variables.
-          phi_indpt = self.lsq.fit_old(-UMAT, Fmat, Aprime, constraint_values)
+          t1=time.time()
+
+          print 'Aineq'
+          print Aineq
+          print 'bineq'
+          print bineq
+
+          
+          self.lsq.set_asr(Aprime, constraint_values)
+          self.lsq.set_ineq(Aineq, bineq)
+
+          
+          phi_indpt = self.lsq.fit(-UMAT, Fmat)
+
+
+          t2=time.time()
+          if self.verbosity.lower() == 'high':
+            print 'LSQ time ' , t2-t1
+            print
 
 
         if self.verbosity == 'High':
           print 'constrained phi_indpt'
           print phi_indpt
           print 'test the constraints (should be zeros)'
-          a=np.dot(ASR, phi_indpt)
+          a=np.dot(ASR, phi_indpt) - constraint_values
           print a
           print 'max abs constraint violation : ' + str(max(abs(a)))
           print
@@ -2566,6 +3735,7 @@ class phi:
         t1=time.time()
 
         phi_indpt, support = self.run_rfe(-UMAT, Fmat, None, None)
+        self.support = support
 
         t2=time.time()
         if self.verbosity.lower() == 'high':
@@ -2581,41 +3751,26 @@ class phi:
 
         phi_indpt = z
 
-    if self.verbosity == 'High':
-      print 'phi_indpt'
-      print phi_indpt
+    return phi_indpt 
 
-
-    predicted_forces_energy = np.dot(-1.0*UMAT, phi_indpt)
-
-    if self.verbosity == 'High':
-      print 'predicted_var   reference_var'
-      N = predicted_forces_energy.shape[0]
-      for x in range(N):
-        print str(predicted_forces_energy[x]) + '\t' + str(Fmat[x]) + '\t' + str(predicted_forces_energy[x] - Fmat[x])
-      print '---'
-
-    print 'sum_error rms : ' +str(np.sum((predicted_forces_energy - Fmat)**2)**0.5)
-    print
-    print 
-
-
-    return phi_indpt
-
-  def run_rfe(self, X,y, ASR, vals):
+  def run_rfe(self, X,y, ASR, vals, Aineq=None, bineq=None):
 
     print 'X', X.shape
     #guesses good parameters for rfe (recursive variable elimination), the runs it
 
 ############    minnum = int(round(X.shape[1]/2)) #we keep at least half of the predictors by default to save computation time.
 
-    if X.shape[1] > 300:
+    if X.shape[1] > 500:
+      step = 10
+    elif X.shape[1] > 300:
       step = 5
     elif X.shape[1] > 200:
       step = 2
     else:
       step = 1
 
+    print 'run_rfe step size', step
+    
     #standardize. standardizing is important so that the coefs can be judged against each other in a meaningful way
     #    std = np.ones(X.shape[1])
     std = (X).std(axis=0)
@@ -2625,8 +3780,11 @@ class phi:
     X = (X)/np.tile(std,(X.shape[0],1))
     if ASR is not None:
       ASR = ASR /np.tile(std,(ASR.shape[0],1))
-
+    if Aineq is not None:
+      Aineq = Aineq /np.tile(std,(Aineq.shape[0],1))
+      
     self.lsq.set_asr(ASR, vals)
+    self.lsq.set_ineq(Aineq, bineq)
 
     n_features = X.shape[1]
 
@@ -2698,7 +3856,7 @@ class phi:
               i_se_median = i
               break
 
-      i_se_median = i_se_median + 1
+      i_se_median = i_se_median 
 
       n_features_to_select_se_median = n_features - (nscore-(i_se_median+1))*step
 
@@ -2811,14 +3969,30 @@ class phi:
   def index_supercell_f(self,ssind):
     return [ssind/(self.supercell[1]*self.supercell[2]),(ssind/self.supercell[2])%self.supercell[1],ssind%(self.supercell[2])]
 
-  def calculate_energy_force_stress(self, A, coords,types, dims, phis, phi_tensors, nonzero, cell=[]):
+  def calculate_energy_force_stress(self, A, coords,types, dims, phis, phi_tensors, nonzero, cell=[], shortrangeonly_only = False):
     #calculates the energy,forces, (and stress?) from a set of cluster/fcs expansion coeffs, properly reconstructed
     #the main version uses fortran.  Also addeds electrostatic contribution if we are using it
 
 
     energy_sr, forces_sr, stress_sr = calculate_energy_fortran(self, A, coords, types, dims, [], phi_tensors, nonzero, supercell_input = cell)
 
-    if self.useewald == True:
+    if shortrangeonly_only == True:
+      return energy_sr, forces_sr, stress_sr
+    
+    
+#    print 'exit'
+#    exit()
+    
+    if self.extra_strain:#
+
+      energy_strain, stress_strain = self.eval_strain_term(A, cell)
+      print ' energy_strain, stress_strain',energy_strain
+      print  stress_strain#
+
+      energy_sr += energy_strain
+      stress_sr += stress_strain
+#                 
+    if self.use_borneffective == True:
 
       ncells = 1
 
@@ -2829,7 +4003,7 @@ class phi:
 
       self.set_supercell(supercell)
 
-      energy_es, forces_es, stress_es = self.run_dipole_harm(A, coords)
+      energy_es, forces_es, stress_es = self.run_dipole_harm(A, coords,types=types)
       if self.verbosity == 'High':
         #es stands for electrostatic
         print 'energy_es ' +str(energy_es)
@@ -2844,14 +4018,90 @@ class phi:
       stress_es = np.zeros((3,3),dtype=float)
 
 
+
+    if self.use_fixedcharge == True:
+      print 'using fixed charge'
+
+
+      refA = self.Acell_super
+      et = np.dot(np.linalg.inv(refA),A) - np.eye(3)
+      strain = 0.5*(et + et.transpose())
+
+      correspond, vacancies = self.find_corresponding(coords,self.coords_super, refA)
+
+
+      nat_ref = coords.shape[0]
+      
+      tu = []
+      u = np.zeros((nat_ref,3),dtype=float)
+
+      types_reorder = []
+      for t in range(nat_ref):
+        types_reorder.append('x')
+
+      if len(types) != 0:
+        for c in correspond:
+          u[c[1],:] = np.dot(coords[c[0],:] + c[2],A) - np.dot(self.coords_super[c[1],:] , A)
+          if len(self.types_dict ) > 0 and len(types) > 0:
+            if types[c[0]] in self.types_dict:
+              types_reorder[c[1]] = types[c[0]]
+      
+
+#      print 'phi fixed types', types_reorder
+#      print 'phi fixed A', refA
+#     print 'phi fixed coords', self.coords_super
+      energyf, forcesf, stressf = self.eval_fixedcharge(types_reorder, u, strain, refA, self.coords_super)
+
+      print 'energy f OUTPUT ', energyf
+      
+
+      
+      forcesf2 = np.zeros(forcesf.shape,dtype=float)
+      for [c0,c1, RR] in correspond: #this section puts the forces back into the original order, if the orignal atoms are not in the same order as the reference structure
+        forcesf2[c0,:] = forcesf[c1, :]
+      forcesf = forcesf2
+
+      print 'sum abs forces forcesf end', np.sum(np.sum(np.abs(forcesf)))
+      
+
+    else:
+      energyf = 0.0
+      forcesf = np.zeros((forces_sr.shape[0],3),dtype=float)
+      stressf = np.zeros((3,3),dtype=float)
+      
+
+
     if self.verbosity == 'High':
       #sr stands for short range
       print 'energy_sr '+str(energy_sr)
       print 'forces_sr'
       print forces_sr
+      refA = self.Acell_super
+      correspond, vacancies = self.find_corresponding(coords,self.coords_super, refA)
+      nat_ref = coords.shape[0]
+      
+      tu = []
+      u = np.zeros((nat_ref,3),dtype=float)
+
+      types_reorder = []
+      for t in range(nat_ref):
+        types_reorder.append('x')
+
+      if len(types) != 0:
+        for c in correspond:
+          u[c[1],:] = np.dot(coords[c[0],:] + c[2],A) - np.dot(self.coords_super[c[1],:] , A)
+          if len(self.types_dict ) > 0 and len(types) > 0:
+            if types[c[0]] in self.types_dict:
+              types_reorder[c[1]] = types[c[0]]
+
+      print 'u'
+      print u
+
+
+      
       print
 
-    return energy_es+energy_sr, forces_es+forces_sr, stress_es+stress_sr
+    return energy_es+energy_sr+energyf, forces_es+forces_sr+forcesf, stress_es+stress_sr+stressf
 
   def run_montecarlo_test(self, A, coords,types, dims, phi_tensors, distcut, nonzero, nsteps, temp, chem_pot, report_freq, step_size, use_all, cell=[], runaway_energy=-3.0):
 
@@ -2867,7 +4117,7 @@ class phi:
 
     return starting_energy
 
-  def run_montecarlo(self, A, coords,types, dims, phi_tensors, distcut, nonzero, nsteps, temp, chem_pot, report_freq, step_size, use_all, cell=[], runaway_energy=-3.0):
+  def run_montecarlo(self, A, coords,types, dims, phi_tensors, distcut, nonzero, nsteps, temp, chem_pot, report_freq, step_size, use_all, cell=[], runaway_energy=-3.0, stag_dir = '111'):
 
     #this runs the montecarlo sampling. the real work is done elsewhere. this just sets things up and runs
     #some basic analysis afterwards. it is up to the user to understand MC sampling.
@@ -2922,6 +4172,8 @@ class phi:
     energies, struct_all, strain_all, cluster_all, step_size, types_reorder, supercell, coords_ref, outstr = run_montecarlo(self, 0.0, use_all, beta, chem_pot, nsteps, step_size , report_freq, A, coords, types, dims, phi_tensors, nonzero, cell=cell, runaway_energy=runaway_energy)
     tb = time.time()
 
+
+    
     self.vacancy_param = vacancy_param_old #restore this
 
     print 'MC TIME ' + str(tb-ta)
@@ -2988,10 +4240,20 @@ class phi:
 
 
     if self.magnetic == 2:
+
+
       avg_cluster_all = np.mean(cluster_all, 3)
     else:
       avg_cluster_all = np.mean(cluster_all, 2)
-      
+
+
+#    for i in range(cluster_all.shape[3]):
+#      print 'cluster_all', i
+#      print cluster_all[:,:,:,i]
+#    print 'mean'
+#    print avg_cluster_all[:,:,:]
+
+    print
     print 'AVERAGE STRUCTURE (entire supercell, avg over steps, crystal coordinates)'
     print '-------------'
     for cell in range(struct_all.shape[1]):
@@ -3046,26 +4308,29 @@ class phi:
       print 'Average Structure over cells and steps (crystal_coords)'
       print struct_average + self.coords_hs
       print
-      print 'Average Structure Displacements 2x2x2 cell (crys)'
-      struct_222 = np.zeros((8,self.nat,3),dtype=float)
+      if min(supercell) >= 2:
+        print 'Average Structure Displacements 2x2x2 cell (crys)'
+        struct_222 = np.zeros((8,self.nat,3),dtype=float)
 
-      cell_dict = {}
-      for cell in range(struct_all.shape[1]):
-        ss = self.index_supercell_f(cell)
-        ss222 = [ss[0]%2,ss[1]%2,ss[2]%2]
-        cell222 = ss222[0]*4+ss222[1]*2 + ss222[2]
+        cell_dict = {}
+        for cell in range(struct_all.shape[1]):
+          ss = self.index_supercell_f(cell)
+          ss222 = [ss[0]%2,ss[1]%2,ss[2]%2]
+          cell222 = ss222[0]*4+ss222[1]*2 + ss222[2]
 
-        if cell222 not in cell_dict:
-          cell_dict[cell222] = []
+          if cell222 not in cell_dict:
+            cell_dict[cell222] = []
 
-        cell_dict[cell222].append(cell)
-        
-      for cell222 in range(8):
-        cells = cell_dict[cell222]
-        for at in range(struct_all.shape[0]):
-          for i in range(3):
-            struct_222[cell222, at, i] = np.mean(avg_struct_all[at, cells, i]-coords_ref[at, cells,i])*(supercell[i]/2.0)
-        print struct_222[cell222, :, :]
+          cell_dict[cell222].append(cell)
+
+
+
+        for cell222 in range(8):
+          cells = cell_dict[cell222]
+          for at in range(struct_all.shape[0]):
+            for i in range(3):
+              struct_222[cell222, at, i] = np.mean(avg_struct_all[at, cells, i]-coords_ref[at, cells,i])*(supercell[i]/2.0)
+          print struct_222[cell222, :, :]
 
       print
 
@@ -3194,39 +4459,51 @@ class phi:
         else:
           print 'compliance tensor not invertible, det = ' + str(np.linalg.det(compliance))
 
-    if self.useewald == True:
+    if self.use_borneffective == True:
       if use_all[0]:
-        polarization_reduced_avg, polarization_physical_avg = self.calc_polarization(struct_average+self.coords_hs, A_avg)
+
+#        polarization_reduced_avg, polarization_physical_avg = self.calc_polarization(struct_average+self.coords_hs, A_avg)
 
         polarization_reduced = np.zeros((struct_all.shape[3],3),dtype=float)
+        polarization_phys = np.zeros((struct_all.shape[3],3),dtype=float)
         polarization_reduced_mag = np.zeros((struct_all.shape[3]),dtype=float)
 
         if use_all[2]:
           print 'WARNING: DIELECTRIC PROPERTIES FOR GRAND CANONICAL MC ARE PROBABLY NOT CORRECT'
 
+#        print 'struct avg step'
+        for st in range(struct_all.shape[3]):
+#          struct_average_step = np.mean(struct_all[:,:,:,st] - coords_ref, 1)
+#          for i in range(3):
+#            struct_average_step[:,i] = struct_average_step[:,i] * supercell[i]
+#          struct_average_step +=  self.coords_hs
+
+#          print st
+#          print struct_average_step
+#          strain = strain_all[:,:,st]
+#          print strain
+
+#          A = np.dot(self.Acell_super, (np.eye(3) + strain_all[:,:,st]))
+#          u_bohr = np.dot(struct_all[:,:,:,st] - coords_ref, A)
+
+          if self.magnetic > 0:
+            pprop, pphys = self.calc_polarization(struct_all[:,:,:,st], coords_ref, 0.0*cluster_all[:,:,:,st], strain_all[:,:,st], self.supercell)
+          else:
+            pprop, pphys = self.calc_polarization(struct_all[:,:,:,st], coords_ref, cluster_all[:,:,st], strain_all[:,:,st], self.supercell)            
+          polarization_reduced[st,:] = pprop
+          polarization_phys[st,:] = pprop
+          polarization_reduced_mag[st] = np.sum(pprop**2)**0.5
+
+
+        polarization_reduced_avg = np.mean(polarization_reduced, 0)
+        polarization_physical_avg = np.mean(polarization_phys, 0)
+        
         print 'Change in Polarization physical .a.u. , relative to high sym'
         print polarization_physical_avg
         print 'Change in Polarization reduced a.u. , relative to high sym'
         print polarization_reduced_avg
-#        print 'struct avg step'
-        for st in range(struct_all.shape[3]):
-          struct_average_step = np.mean(struct_all[:,:,:,st] - coords_ref, 1)
-          for i in range(3):
-            struct_average_step[:,i] = struct_average_step[:,i] * supercell[i]
-          struct_average_step +=  self.coords_hs
-
-#          print st
-#          print struct_average_step
-          strain = strain_all[:,:,st]
-#          print strain
-
-          A = np.dot(self.Acell, (np.eye(3) + strain))
-
-          pprop, pphys = self.calc_polarization(struct_average_step, A)
           
-          polarization_reduced[st,:] = pprop
-          polarization_reduced_mag[st] = np.sum(pprop**2)**0.5
-
+          
         print 'Change in polarization magnitude: ' + str(np.mean(polarization_reduced_mag))
         print
         print 'Chi ionic'
@@ -3252,7 +4529,10 @@ class phi:
         
         print
         print 'Dielectric constant total (ionic + electronic)'
-        self.output_voight(diel_ionic + np.array(self.dyn.eps))
+        if self.model_zeff:
+          self.output_voight(diel_ionic + np.array(self.diel))
+        else:
+          self.output_voight(diel_ionic + np.array(self.dyn.eps))
         print
       if use_all[0] and use_all[1] : #piezoelectric
 
@@ -3313,13 +4593,19 @@ class phi:
         mean_abs_cluster = np.zeros(cluster_all.shape[2],dtype=float)
         mean_abs_111_cluster = np.zeros(cluster_all.shape[2],dtype=float)
 
+###        stag_dir = '111'
 
         for step in range(cluster_all.shape[2]):
           mean_cluster_current = 0.0
           mean_111_cluster_current = 0.0
           for s in range(ncells):
             ss = self.ss_index_dim(s,3)
-            stag = (-1)**(ss[0]+ss[1]+ss[2])
+
+            if stag_dir == '111':
+              stag = (-1)**(ss[0]+ss[1]+ss[2])
+            elif  stag_dir == '001':
+              stag = (-1)**(ss[2])
+              
             for at in self.cluster_sites:
               mean_cluster_current += cluster_all[at,s,step]
               mean_111_cluster_current += stag*cluster_all[at,s,step]
@@ -3377,10 +4663,38 @@ class phi:
         mean_abs_cluster = np.zeros(cluster_all.shape[3],dtype=float)
         mean_abs_111_cluster = np.zeros(cluster_all.shape[3],dtype=float)
 
+        mean_cluster_x = np.zeros(cluster_all.shape[3],dtype=float)
+        mean_111_cluster_x = np.zeros(cluster_all.shape[3],dtype=float)
+
+        mean_abs_cluster_x = np.zeros(cluster_all.shape[3],dtype=float)
+        mean_abs_111_cluster_x = np.zeros(cluster_all.shape[3],dtype=float)
+
+        mean_cluster_y= np.zeros(cluster_all.shape[3],dtype=float)
+        mean_111_cluster_y = np.zeros(cluster_all.shape[3],dtype=float)
+
+        mean_abs_cluster_y = np.zeros(cluster_all.shape[3],dtype=float)
+        mean_abs_111_cluster_y = np.zeros(cluster_all.shape[3],dtype=float)
+
+        mean_cluster_xy= np.zeros(cluster_all.shape[3],dtype=float)
+        mean_111_cluster_xy = np.zeros(cluster_all.shape[3],dtype=float)
+
+        mean_abs_cluster_xy = np.zeros(cluster_all.shape[3],dtype=float)
+        mean_abs_111_cluster_xy = np.zeros(cluster_all.shape[3],dtype=float)
+        
 
         for step in range(cluster_all.shape[3]):
           mean_cluster_current = 0.0
           mean_111_cluster_current = 0.0
+
+          mean_cluster_current_x = 0.0
+          mean_111_cluster_current_x = 0.0
+
+          mean_cluster_current_y = 0.0
+          mean_111_cluster_current_y = 0.0
+
+          mean_cluster_current_xy = 0.0
+          mean_111_cluster_current_xy = 0.0
+
           for s in range(ncells):
             ss = self.ss_index_dim(s,3)
             stag = (-1)**(ss[0]+ss[1]+ss[2])
@@ -3388,6 +4702,18 @@ class phi:
               mean_cluster_current += math.cos(cluster_all[at,s,0,step])
               mean_111_cluster_current += stag*math.cos(cluster_all[at,s,0,step])
 
+              x = math.sin(cluster_all[at,s,0,step])*math.cos(cluster_all[at,s,1,step])
+              y = math.sin(cluster_all[at,s,0,step])*math.sin(cluster_all[at,s,1,step])
+
+              mean_cluster_current_x += x
+              mean_111_cluster_current_x += stag*x
+
+              mean_cluster_current_y += y
+              mean_111_cluster_current_y += stag*y
+
+#              mean_cluster_current_xy += (x**2 + y**2)**0.5
+#              mean_111_cluster_current_xy += stag*(x**2 + y**2)**0.5
+              
 
           mean_cluster[step] = mean_cluster_current/float(ncells*len(self.cluster_sites))
           mean_abs_cluster[step] = abs(mean_cluster_current)/float(ncells*len(self.cluster_sites))
@@ -3395,6 +4721,26 @@ class phi:
           mean_111_cluster[step] = mean_111_cluster_current/float(ncells*len(self.cluster_sites))
           mean_abs_111_cluster[step] = abs(mean_111_cluster_current)/float(ncells*len(self.cluster_sites))
 
+          mean_cluster_x[step] = mean_cluster_current_x/float(ncells*len(self.cluster_sites))
+          mean_abs_cluster_x[step] = abs(mean_cluster_current_x)/float(ncells*len(self.cluster_sites))
+
+          mean_111_cluster_x[step] = mean_111_cluster_current_x/float(ncells*len(self.cluster_sites))
+          mean_abs_111_cluster_x[step] = abs(mean_111_cluster_current_x)/float(ncells*len(self.cluster_sites))
+
+          mean_cluster_y[step] = mean_cluster_current_y/float(ncells*len(self.cluster_sites))
+          mean_abs_cluster_y[step] = abs(mean_cluster_current_y)/float(ncells*len(self.cluster_sites))
+
+          mean_111_cluster_y[step] = mean_111_cluster_current_y/float(ncells*len(self.cluster_sites))
+          mean_abs_111_cluster_y[step] = abs(mean_111_cluster_current_y)/float(ncells*len(self.cluster_sites))
+          
+          mean_cluster_xy[step] = (mean_cluster_current_x**2 + mean_cluster_current_y**2 )**0.5 /float(ncells*len(self.cluster_sites))
+          mean_abs_cluster_xy[step] = (mean_cluster_current_x**2 + mean_cluster_current_y**2 )**0.5 /float(ncells*len(self.cluster_sites))
+
+          mean_111_cluster_xy[step] = (mean_111_cluster_current_x**2 + mean_111_cluster_current_y**2)**0.5/float(ncells*len(self.cluster_sites))
+          mean_abs_111_cluster_xy[step] = (mean_111_cluster_current_x**2 + mean_111_cluster_current_y**2)**0.5/float(ncells*len(self.cluster_sites))
+          
+
+          
         print 
         print
         print 'Mean_cluster z comp: ' +str(np.mean(mean_cluster))
@@ -3402,7 +4748,23 @@ class phi:
         print 'Mean_staggered_cluster z comp: ' +str(np.mean(mean_111_cluster))
         print 'Mean_abs_staggered_cluster z comp: ' +str(np.mean(mean_abs_111_cluster))
         print
+        print 'Mean_cluster x comp: ' +str(np.mean(mean_cluster_x))
+        print 'Mean_abs_cluster x comp: ' +str(np.mean(mean_abs_cluster_x))
+        print 'Mean_staggered_cluster x comp: ' +str(np.mean(mean_111_cluster_x))
+        print 'Mean_abs_staggered_cluster x comp: ' +str(np.mean(mean_abs_111_cluster_x))
+        print
+        print 'Mean_cluster y comp: ' +str(np.mean(mean_cluster_y))
+        print 'Mean_abs_cluster y comp: ' +str(np.mean(mean_abs_cluster_y))
+        print 'Mean_staggered_cluster y comp: ' +str(np.mean(mean_111_cluster_y))
+        print 'Mean_abs_staggered_cluster y comp: ' +str(np.mean(mean_abs_111_cluster_y))
+        print
 
+        print 'Mean_cluster xy comp: ' +str(np.mean(mean_cluster_xy))
+        print 'Mean_abs_cluster xy comp: ' +str(np.mean(mean_abs_cluster_xy))
+        print 'Mean_staggered_cluster xy comp: ' +str(np.mean(mean_111_cluster_xy))
+        print 'Mean_abs_staggered_cluster xy comp: ' +str(np.mean(mean_abs_111_cluster_xy))
+        print
+        
         mean_cluster = np.zeros(cluster_all.shape[3],dtype=float)
         mean_111_cluster = np.zeros(cluster_all.shape[3],dtype=float)
 
@@ -3599,67 +4961,68 @@ class phi:
         print '----'
         print
 
+    if use_all[0]:
 
-    print 'First Neighbor Distance Changes'
-    print '------------------------'
-    d=np.zeros(3,dtype=float)
-    ss=np.zeros(3,dtype=float)
-    ref=np.zeros(3,dtype=float)
-    shift = np.zeros(3,dtype=float)
-    for l in self.firstnn_list:
-      at1 = l[0]
-      at2 = l[1]
-      delta_ss = l[2]
-      print 
-      print 'dist first neighbor:', at1, at2, delta_ss
-      print
-      dists = []
-#      refs = []
-#      shifts = []
-      for cell in range(ncells):
-        ss = self.index_supercell_f(cell)
-        ss_new = (np.array(ss)+delta_ss)%self.supercell
-        cell_delta = self.supercell_index_f(ss_new)
+      print 'First Neighbor Distance Changes'
+      print '------------------------'
+      d=np.zeros(3,dtype=float)
+      ss=np.zeros(3,dtype=float)
+      ref=np.zeros(3,dtype=float)
+      shift = np.zeros(3,dtype=float)
+      for l in self.firstnn_list:
+        at1 = l[0]
+        at2 = l[1]
+        delta_ss = l[2]
+        print 
+        print 'dist first neighbor:', at1, at2, delta_ss
+        print
+        dists = []
+  #      refs = []
+  #      shifts = []
+        for cell in range(ncells):
+          ss = self.index_supercell_f(cell)
+          ss_new = (np.array(ss)+delta_ss)%supercell
+          cell_delta = self.supercell_index_f(ss_new)
 
-        ref = coords_ref[at1,cell,:] - coords_ref[at2,cell_delta,:]
-        shift[:] = 0.0
-        for i in range(3):
-          if ref[i] > 0.5:
-            shift[i] = -1.0
-          elif ref[i] < -0.5:
-            shift[i] = +1.0
+          ref = coords_ref[at1,cell,:] - coords_ref[at2,cell_delta,:]
+          shift[:] = 0.0
+          for i in range(3):
+            if ref[i] > 0.5:
+              shift[i] = -1.0
+            elif ref[i] < -0.5:
+              shift[i] = +1.0
 
-        ref = np.dot(ref + shift, Aref_super)
-        
-#        refs.append(copy.copy(ref))
-#        shifts.append(copy.copy(shift))
+          ref = np.dot(ref + shift, Aref_super)
 
-        dref = np.sum(ref**2)**0.5
+  #        refs.append(copy.copy(ref))
+  #        shifts.append(copy.copy(shift))
 
-        for step in range(struct_all.shape[3]):
-          Acell = np.dot(Aref_super, np.eye(3) + strain_all[:,:,step])
+          dref = np.sum(ref**2)**0.5
 
-          d[:] = np.dot((struct_all[at1,cell,:,step] -  struct_all[at2, cell_delta, :, step]+shift), Acell)
-#          for i in range(3):
-#            d[i] =  struct_cart[at1, cell, i, step] - struct_cart[at2, cell_delta, i, step]
-          dist = np.sum(d**2)**0.5 - dref
-          dists.append(dist)
+          for step in range(struct_all.shape[3]):
+            Acell = np.dot(Aref_super, np.eye(3) + strain_all[:,:,step])
 
-#      print 'len(refs)', len(refs)
-#      for d2 in refs:
-#        print d2
-#      print 'len(shifts)', len(shifts)
-#      for d2 in shifts:
-#        print d2
+            d[:] = np.dot((struct_all[at1,cell,:,step] -  struct_all[at2, cell_delta, :, step]+shift), Acell)
+  #          for i in range(3):
+  #            d[i] =  struct_cart[at1, cell, i, step] - struct_cart[at2, cell_delta, i, step]
+            dist = np.sum(d**2)**0.5 - dref
+            dists.append(dist)
 
-#      print 'len(dists)', len(dists)
-#      for d2 in dists:
-#        print d2
-#      print
-      print 'ref', ref, dref
-      counts, bins = np.histogram(dists,bins=mybins)
-      for bi in range(counts.shape[0]):
-        print '{:10.7f} {:10.7f} {:10.7f}'.format(counts[bi], bins[bi], bins[bi+1])
+  #      print 'len(refs)', len(refs)
+  #      for d2 in refs:
+  #        print d2
+  #      print 'len(shifts)', len(shifts)
+  #      for d2 in shifts:
+  #        print d2
+
+  #      print 'len(dists)', len(dists)
+  #      for d2 in dists:
+  #        print d2
+  #      print
+        print 'ref', ref, dref
+        counts, bins = np.histogram(dists,bins=mybins)
+        for bi in range(counts.shape[0]):
+          print '{:10.7f} {:10.7f} {:10.7f}'.format(counts[bi], bins[bi], bins[bi+1])
       
 
     print
@@ -3716,8 +5079,8 @@ class phi:
     correspond,vacancies = self.find_corresponding(self.dyn.pos_crys,self.coords_hs)
     self.set_supercell(supercell_temp)
 
-    if self.dyn.nonan == True:
-      self.setup_ewald()
+#    if self.dyn.nonan == True:
+#      self.setup_ewald()
       
 #    self.setup_ewald()
 
@@ -3731,46 +5094,158 @@ class phi:
 
     H_R, harm_normal, H_Rp, harm_normalp,H_Rpp, harm_normalpp, H_Q = self.dyn.supercell_fourier_make_force_constants_derivative_harm(refA, refpos,low_memory)
 
-    natsuper = refpos.shape[0]
-    volsuper = abs(np.linalg.det(refA))
-    ncells = natsuper / self.nat
-
-    v = np.zeros((3,3,3,3),dtype=float)
-    vf = np.zeros((self.nat,3,3,3),dtype=float)
 #    print 'harm_normalpp'
-    for i in range(3):
-      for j in range(3):
-        for ii in range(3):
-          for jj in range(3):
-            for a in range(self.nat):
-              for b in range(self.nat):
-                v[i,j, ii, jj] += harm_normalpp[a*3+i,b*3+j, ii, jj].real/2.0 #forcing constraint to be obeyed
-                v[ ii, jj,i,j] += harm_normalpp[a*3+i,b*3+j, ii, jj].real/2.0
+#    print harm_normalpp
+
+#    sys.stdout.flush()
+
+    
+    return harm_normal.real, harm_normalpp.real, harm_normalp.imag, H_Q
+
+###    natsuper = refpos.shape[0]
+###    volsuper = abs(np.linalg.det(refA))
+###    ncells = natsuper / self.nat
+###
+###    v = np.zeros((3,3,3,3),dtype=float)
+###    vf = np.zeros((self.nat,3,3,3),dtype=float)
+####    print 'harm_normalpp'
+###    for i in range(3):
+###      for j in range(3):
+###        for ii in range(3):
+###          for jj in range(3):
+###            for a in range(self.nat):
+###              for b in range(self.nat):
+###                v[i,j, ii, jj] += harm_normalpp[a*3+i,b*3+j, ii, jj].real/2.0 #forcing constraint to be obeyed
+###                v[ ii, jj,i,j] += harm_normalpp[a*3+i,b*3+j, ii, jj].real/2.0
+###
+###
+###
+###    elastic_constants = np.zeros((3,3,3,3),dtype=float)
+####see Dynamical Theories of Crystal Lattices by Born and Huang
+###    for a in range(3):
+###      for g in range(3):
+###        for b in range(3):
+###          for l in range(3):
+###            elastic_constants[a,g,b,l] = v[a,b,g,l] + v[b,g,a,l] - v[b,l,a,g]
+###
+###
+####    print '-harm_normalp a b i j ii'
+###    for i in range(3):
+###      for j in range(3):
+###        for a in range(self.nat):
+###          for b in range(self.nat):
+###            for ii in range(3):
+###              vf[a,i,j,ii] += -harm_normalp[a*3+i,b*3+j, ii].imag
+####              print [-harm_normalp[a*3+i,b*3+j, ii].imag, a, b, i, j, ii]
+###
+###    return harm_normal.real, elastic_constants, vf , H_Q
 
 
+  def make_zeff_model(self,refA, refpos, tu, harm_normal, harm_normalpp,harm_normalp,low_memory=False ):
 
-    elastic_constants = np.zeros((3,3,3,3),dtype=float)
-#see Dynamical Theories of Crystal Lattices by Born and Huang
-    for a in range(3):
-      for g in range(3):
-        for b in range(3):
-          for l in range(3):
-            elastic_constants[a,g,b,l] = v[a,b,g,l] + v[b,g,a,l] - v[b,l,a,g]
+#    print 'SHAPES'
+#    print harm_normal.shape
+#    print harm_normalpp.shape
+#    print harm_normalp.shape
+#    print refA.dtype
+#    print refpos.dtype
+#    print tu.dtype
+#    print harm_normal.dtype
+#    print harm_normalpp.dtype
+#    print harm_normalp.dtype
+    if self.magnetic > 0:
+      tu = np.zeros(tu.shape,dtype=int)
+
+    print 'tu'
+    print tu
+    
+    harm_normal_Z, elastic_constants, vf,zeff  = make_zeff_model(self,refA, refpos, tu, harm_normal, harm_normalpp,harm_normalp, low_memory )
+#    print 'harm_normal_Z'
+#    for a in range(refpos.shape[0]):
+#      for b in range(refpos.shape[0]):
+#        print [a,b]
+#        print harm_normal_Z[a*3:(a+1)*3, b*3:(b+1)*3]
+#      print
+#    print
+    return harm_normal_Z, elastic_constants, vf, zeff
+
+    
+###    nat = refpos.shape[0]
+###    zeff = np.zeros((nat,3,3),dtype=float)
+###    for a in range(nat):
+###      t = tu[a]
+###      amod = a%self.nat
+###      if (amod,t) not in  self.zeff_dict:
+###        print 'error zeff model', a, amod, t
+###      else:
+###        zeff[a,:,:] = self.zeff_dict[(amod,t)]
+####        print 'make_zeff_model', a
+####        print zeff[a,:,:]
+###
+####    hk1,harm_normalp, harm_normalpp = borneffective(np.array([0,0,0],dtype=float),self.diel, zeff, refpos, refA)
+###
+###    natsuper = refpos.shape[0]
+###    volsuper = abs(np.linalg.det(refA))
+###    ncells = natsuper / self.nat
+###
+###    v = np.zeros((3,3,3,3),dtype=float)
+###    vf = np.zeros((self.nat,3,3,3),dtype=float)
+####    print 'harm_normalpp'
+###
+###    harm_normal_Z = np.zeros(harm_normal.shape,dtype=float)
+###    for i in range(3):
+###      for j in range(3):
+###        for ii in range(3):
+###          for jj in range(3):
+###            for a in range(natsuper):
+###              for b in range(natsuper):
+###                if a != b:
+###                  harm_normal_Z[a*3+i, b*3+j] += zeff[a,i,ii]*zeff[b,j,jj]*harm_normal[a*3+ii,b*3+jj]
+###
+###    for i in range(3): #enforce asr
+###      for j in range(3):
+###        for a in range(natsuper):
+###          for b in range(natsuper):
+###            if a != b:
+###              harm_normal_Z[a*3+i, a*3+j] += -harm_normal_Z[a*3+i, b*3+j]
+###
+###    for i in range(3):
+###      for j in range(3):
+###        for ii in range(3):
+###          for jj in range(3):
+###            for iii in range(3):
+###              for jjj in range(3):
+###                for a in range(self.nat):
+###                  for b in range(self.nat):
+###                    v[i,j, ii, jj] += zeff[a,i,iii]*zeff[b,jjj,j]*harm_normalpp[a*3+iii,b*3+jjj, ii, jj]/2.0 #forcing constraint to be obeyed
+###                    v[ ii, jj,i,j] += zeff[a,i,iii]*zeff[b,jjj,j]*harm_normalpp[a*3+iii,b*3+jjj, ii, jj]/2.0
+###
+###
+###
+###    elastic_constants = np.zeros((3,3,3,3),dtype=float)
+####see Dynamical Theories of Crystal Lattices by Born and Huang
+###    for a in range(3):
+###      for g in range(3):
+###        for b in range(3):
+###          for l in range(3):
+###            elastic_constants[a,g,b,l] = v[a,b,g,l] + v[b,g,a,l] - v[b,l,a,g]
+###
+###
+####    print '-harm_normalp a b i j ii'
+###    for i in range(3):
+###      for j in range(3):
+###        for iii in range(3):
+###          for jjj in range(3):
+###            for a in range(self.nat):
+###              for b in range(self.nat):
+###                for ii in range(3):
+###                  vf[a,i,j,ii] += -zeff[a,iii,i]*zeff[b,jjj,j]*harm_normalp[a*3+iii,b*3+jjj, ii]
+####              print [-harm_normalp[a*3+i,b*3+j, ii].imag, a, b, i, j, ii]
+###
+###    return harm_normal_Z, elastic_constants, vf 
 
 
-#    print '-harm_normalp a b i j ii'
-    for i in range(3):
-      for j in range(3):
-        for a in range(self.nat):
-          for b in range(self.nat):
-            for ii in range(3):
-              vf[a,i,j,ii] += -harm_normalp[a*3+i,b*3+j, ii].imag
-#              print [-harm_normalp[a*3+i,b*3+j, ii].imag, a, b, i, j, ii]
-
-    return harm_normal.real, elastic_constants, vf , H_Q
-
-
-  def run_dipole_harm(self,A,pos, refA=[], refpos=[]):
+  def run_dipole_harm(self,A,pos, refA=[], refpos=[],types=[]):
     #This produes the long range energy, forces, and stresses from a unit cell and a set of coordinates
 
     TIME = [time.time()]
@@ -3791,6 +5266,17 @@ class phi:
     for c in correspond:
       posnew[c[1],:] = pos[c[0],:] + c[2]
 
+
+    tu = np.zeros(pos.shape[0],dtype=int)
+
+    if len(types) != 0:
+      for c in correspond:
+        posnew[c[1],:] = pos[c[0],:] + c[2]
+        if len(self.types_dict ) > 0 and len(types) > 0:
+          if types[c[0]] in self.types_dict:
+            tu[c[1]] = self.types_dict[types[c[0]] ]
+
+      
     TIME.append(time.time())
 
     #this gets the force constants, atom/stress interaction, and elastic constants we need
@@ -3799,7 +5285,7 @@ class phi:
 
     #we look up the force constants if possible
     found = False
-    for [AA,hh,vv,vvf,hq] in self.dipole_list:
+    for [AA,hh,vv,vvf] in self.dipole_list:
       if np.sum(np.sum(np.abs(AA-refA))) < 1e-5:
         #found it
         found = True
@@ -3811,8 +5297,12 @@ class phi:
     if found == False: #didn't find, have to compute
       print 'calculating dipole f.c.s, adding to database'
       harm_normal, v, vf, hq = self.get_dipole_harm(refA,refpos)
-      self.dipole_list.append([refA, harm_normal, v, vf, hq])
- 
+      self.dipole_list.append([refA, harm_normal, v, vf])
+
+    TIME.append(time.time())
+      
+    harm_normal, v, vf, zeff = self.make_zeff_model(refA, refpos, tu, harm_normal, v, vf)
+      
 
     TIME.append(time.time())
 
@@ -3827,7 +5317,14 @@ class phi:
 
     TIME.append(time.time())
 
-    energy, forces, stress = dipole_dipole(u, strain, v, vf, harm_normal.real, volsuper, ncells, natsuper, self.nat)
+    print 'vf.shape', vf.shape
+    print 'v.shape', v.shape
+    print 'refpos', refpos.shape
+    print 'natsuper', natsuper
+    print 'u', u.shape
+    print 'ncells', ncells
+    
+    energy, forces, stress = dipole_dipole(u, strain, v, vf, harm_normal.real, volsuper, ncells,self.nat, natsuper)
 
     TIME.append(time.time())
 
@@ -3877,8 +5374,8 @@ class phi:
       dontwrite = True
       
     print
-    if self.verbosity == 'High':
-      print 'Writing harmonic in ' + str(cell_towrite)
+#    if self.verbosity == 'High':
+    print 'Writing harmonic in ' + str(cell_towrite)
 
     retst = ""
     
@@ -3952,6 +5449,7 @@ class phi:
     #atomic positions
 #    print self.coords_hs
 #    print self.Acell
+    print namedict
     for i,[name,coords] in enumerate(zip(self.coords_type, np.dot(self.coords_hs, self.Acell)/alen )):
       
       #converted coords to cartesian
@@ -3960,7 +5458,7 @@ class phi:
       retst += str(i+1) + '   ' + namedict[name] + '     ' + str(coords[0]) + '    ' + str(coords[1]) + '     ' + str(coords[2]) + '\n'
 
     #meff and dielectric data
-    if self.useewald  == True:
+    if self.use_borneffective  == True:
 #      if return_string == False: (' T\n')
       retst += ' T\n'
 
@@ -4002,7 +5500,7 @@ class phi:
       out.write(retst)
       out.close()
 
-#    print 'done writing phi'
+    print 'done writing phi'
     print
     return retst
 
@@ -4156,9 +5654,10 @@ class phi:
       print 'bestfitcell using n = '+str(n)
     dmin = [1000000000.,1000000000.,1000000000.]
     best = np.zeros((3,3),dtype=int)
-    for x in range(-n,n+1):
-      for y in range(-n,n+1):
-        for z in range(-n,n+1):
+    for x in range(-n,n+1)+[0.333333333333, 0.5,-0.5,-0.3333333333333]:
+      for y in range(-n,n+1)+[0.333333333333, 0.5,-0.5,-0.3333333333333]:
+        for z in range(-n,n+1)+[0.333333333333, 0.5,-0.5,-0.3333333333333]:
+#          print [x,y,z]
           vnew = self.Acell[0,:]*x + self.Acell[1,:]*y + self.Acell[2,:]*z
           d=0
           for i in range(3):
@@ -4167,11 +5666,17 @@ class phi:
               best[i,:] = [x,y,z]
               dmin[i] = d
 
+
+              
     if self.verbosity == 'High':
       print 'found best fit unit cell'
       print best
       print 'error ' + str(dmin)
-
+      print 'self.Acell'
+      print self.Acell
+      print 'A'
+      print A
+      print '=='
       
     return best
 
@@ -4202,12 +5707,24 @@ class phi:
     dist_A = np.ones(3,dtype=float)*1000000000.
     combo = [[],[],[]]
 
+    bestfitcell = self.find_best_fit_cell(A_new)
+    A_ref_bfc = np.dot(bestfitcell, self.Acell)
+
+#    print 'A_new'
+#    print A_new
+#    print 'A_ref_bfc'
+#    print A_ref_bfc
+#    print 'bestfitcell'
+#    print bestfitcell
+#    print
+    
     #this part identifies the non-diagonal cell
     for x in range(-n,n+1):
       for y in range(-n,n+1):
         for z in range(-n,n+1):
           r = np.tile([x,y,z],(nat,1))
-          pos_big_cart[nat*c:nat*(c+1),:] = np.dot(pos_new+r, A_new)
+#          pos_big_cart[nat*c:nat*(c+1),:] = np.dot(pos_new+r, A_new)
+          pos_big_cart[nat*c:nat*(c+1),:] = np.dot(pos_new+r, A_ref_bfc)
           c+=1
           vnew = A_new[0,:]*x + A_new[1,:]*y + A_new[2,:]*z
           for i in range(3):
@@ -4216,7 +5733,8 @@ class phi:
               dist_A[i] = d
               Anew_big[i,:] = vnew
               combo[i] = [x,y,z]
-    
+
+              
     if any(dist_A > 3.0):
       print 'WARNING - large lattice vector mismatch. Are you sure your non-orthogonal cell fits inside the supercell?'
       print 'Found:'
@@ -4256,6 +5774,7 @@ class phi:
         forces_final[c,:] = forces_big_cart[ind,:]
       
     if self.verbosity == 'High':
+#    if True:
       print 'cart distance'
       for i in range(pos_final_cart.shape[0]):
         print pos_final_cart[i,:] - pos_ref_cart[i,:]
@@ -4266,7 +5785,8 @@ class phi:
       for i in range(pos_final_cart.shape[0]):
         print pos_ref_cart[i,:]
 
-    pos_final_frac = np.dot(pos_final_cart,np.linalg.inv(Anew_big))
+#    pos_final_frac = np.dot(pos_final_cart,np.linalg.inv(Anew_big))
+    pos_final_frac = np.dot(pos_final_cart,np.linalg.inv(A_ref))
 
     if checkforces:
       return pos_final_frac, Anew_big,types_new, combo, forces_final
@@ -4288,8 +5808,19 @@ class phi:
     phi_gamma_v2 = np.zeros((self.nat*3, self.nat*3),dtype=float)
     interaction_v2 = np.zeros((self.nat*3,6), dtype=float)
 
-    if self.useewald == True:
+    if self.use_borneffective == True:
       phi_dip, Cij_es, interaction, hq =  self.get_dipole_harm(self.Acell,self.coords_hs)
+
+      print 'Cij_es before', Cij_es[0,0,0,0]
+      
+      tu = np.zeros(self.nat,dtype=int)
+      refpos = self.coords_hs
+      refA = self.Acell
+      phi_dip, Cij_es, interaction, zeff = self.make_zeff_model(refA, refpos, tu, phi_dip, Cij_es,interaction )
+      Cij_es=Cij_es #/(self.ncells)**2.0
+
+      print 'Cij_es after', Cij_es[0,0,0,0]
+      
       interaction *= -1.0
       Cij = np.zeros((3,3,3,3),dtype=float)
       for i in range(3):
@@ -4298,7 +5829,7 @@ class phi:
             for l in range(3):
 #              Cij[i,j,k,l] = Cij_es[i,k,j,l]
               Cij[i,j,k,l] = Cij_es[i,j,k,l]
-#              print ['wwwwwwwww', i,j,k,l,Cij_es[i,j,k,l]]
+#              print ['cij_es before ', i,j,k,l,Cij_es[i,j,k,l]]
     else:
       phi_dip = np.zeros((self.nat*3, self.nat*3),dtype=float)
       Cij = np.zeros((3,3,3,3),dtype=float)
@@ -4367,8 +5898,8 @@ class phi:
       for g in range(3):
         for b in range(3):
           for l in range(3):
-            Cij_alt[a,g,b,l] += (bracket[a,b,g,l] + bracket[b,g,a,l] - bracket[b,l,a,g])/2.0
-            Cij_alt[b,l,a,g] += (bracket[a,b,g,l] + bracket[b,g,a,l] - bracket[b,l,a,g])/2.0
+            Cij_alt[a,g,b,l] += (bracket[a,b,g,l] + bracket[b,g,a,l] - bracket[b,l,a,g])
+#            Cij_alt[b,l,a,g] += (bracket[a,b,g,l] + bracket[b,g,a,l] - bracket[b,l,a,g])/2.0
 
     for a1 in range(self.nat):
       for i in range(3):
@@ -4384,12 +5915,36 @@ class phi:
 
     
 
+      
+
+      
 
     Cij = 0.5*Cij #/ abs(np.linalg.det(self.Acell))
     Cij_alt = 0.5*Cij_alt #/ abs(np.linalg.det(self.Acell))
     Cij_es *= 0.5
 
+#    print 'cij ', Cij[0,0,2,2], Cij[2,2,0,0]
+#    print 'cij_es ', Cij_es[0,0,2,2], Cij_es[2,2,0,0]
+#    print 'cij_alt ', Cij_alt[0,0,2,2], Cij_alt[2,2,0,0]
+    
+    if self.extra_strain:
+      for a,(order, comp) in enumerate(self.extra_strain_terms):
+        for cc in comp:
+          if  order == 2:
+            ind1 = self.reverse_voight(cc[0])
+            ind2 = self.reverse_voight(cc[1])
+            Cij[ind1[0], ind1[1], ind2[0], ind2[1]] -= 0.5*self.extra_strain_coeffs[a]
+            Cij[ind1[1], ind1[0], ind2[1], ind2[0]] -= 0.5*self.extra_strain_coeffs[a]
 
+            Cij_alt[ind1[0], ind1[1], ind2[0], ind2[1]] -= 0.5*self.extra_strain_coeffs[a]
+            Cij_alt[ind1[1], ind1[0], ind2[1], ind2[0]] -= 0.5*self.extra_strain_coeffs[a]
+            
+
+            #          Cij_alt[ind[0], ind[1]] += 0.5*self.extra_strain_coeffs[a]
+#          Cij_alt[ind[1], ind[0]] += 0.5*self.extra_strain_coeffs[a]
+
+
+    
     print
     print 'Acell'
     print self.Acell
@@ -4426,10 +5981,16 @@ class phi:
 
               bracket_voight[ij,iijj] = bracket[i,j,ii,jj]
 
+#    print 'Cij_voight', Cij_voight[0,2],Cij_voight[2,0]
     print '------------------------------'
     print 'Elastic Constant (FIXED ATOMS) Voight notation '
     self.output_voight(Cij_voight)
-
+    
+#    print 'Cij_alt_voight', Cij_voight_alt[0,2],Cij_voight_alt[2,0]
+#    print '------------------------------'
+#    print 'Elastic Constant (FIXED ATOMS) Voight notation ALT'
+#    self.output_voight(Cij_voight_alt)
+    
 
     print '------------------------------'
     print 'voight notation electrostatic only (FIXED ATOMS)'
@@ -4488,14 +6049,21 @@ class phi:
     print
 
 
-    if self.useewald == True:
+    if self.use_borneffective == True:
 
 
       zborn = np.zeros((self.nat*3,3),dtype=float)
       for at in range(self.nat):
-        for i in range(3):
-          for j in range(3):
-            zborn[3*at+i,j] = self.dyn.zstar[at][i,j]
+        if (at,0) not in  self.zeff_dict:
+          for i in range(3):
+            for j in range(3):
+              zborn[3*at+i,j] = self.dyn.zstar[at][i,j]
+        else:
+          zeff = self.zeff_dict[(at,0)]
+          for i in range(3):
+            for j in range(3):
+              zborn[3*at+i,j] = zeff[i,j]
+
       
       print 'Z eff Born'
       for at in range(self.nat):
@@ -4506,13 +6074,16 @@ class phi:
 #(2.0*4.0*np.pi)**0.5*
       piezo_relaxed =  -1.0/abs(np.linalg.det(self.Acell))* np.dot(interaction_v2.T,np.dot(pseudoinv,zborn))
 
-      print 'Volume: ' , np.linalg.det(abs(self.Acell))
+      print 'Volume: ' , abs(np.linalg.det(self.Acell))
       print
 
       piezo = np.zeros((3, 3,3), dtype=float)
       piezo_v2 = np.zeros((3, 6),dtype=float)
 
-      diel = np.array(self.dyn.eps,dtype=float)
+      if self.model_zeff:
+        diel = self.diel
+      else:
+        diel = np.array(self.dyn.eps,dtype=float)
 
       #2 is from e^2 = 2 in ryd units, the 4 * pi is from setting 1/(4*pi) = 1 (dielectric of free space)
 
@@ -4576,16 +6147,31 @@ class phi:
     if i == 1 and j == 1: return 1
     if i == 2 and j == 2: return 2
     if i == 1 and j == 2: return 3
+    if i == 2 and j == 1: return 3
     if i == 2 and j == 0: return 4
+    if i == 0 and j == 2: return 4
     if i == 0 and j == 1: return 5
+    if i == 1 and j == 0: return 5
     else:
       return -1
 
+  def reverse_voight(self,i):
+    if i == 0:  return [0,0]
+    if i == 1:  return [1,1]
+    if i == 2:  return [2,2]
+    if i == 3:  return [1,2]
+    if i == 4:  return [0,2]
+    if i == 5:  return [0,1]
+    else:
+      return -1
+    
 
   def reconstruct_fcs_nonzero_phi_relative(self, phi_ind_dim, ngroups, nind,trans, d, nonzero_list):
     #takes the independent force constants and the symmetry operations and reconstructs the full set of force constants, stored in basically a knock-off sprase matrix format
     #because a big convectional matrix rapidly becomes untenable for high dimensional expansions
 
+#    print 'trans.keys()'
+#    print trans.keys()
     nz, phi_nz = reconstruct_fcs_nonzero_phi_relative_cython(self, phi_ind_dim, ngroups, nind,trans, d, nonzero_list)
     
     return nz, phi_nz
@@ -4596,11 +6182,15 @@ class lsq_constraint():
   #This class is able to run linear regressions with linear constraints
   #it also implements recursive feature elimination, very similar to the scipy implmentaion but using linear constraints
 
-  def __init__(self,  ASR=np.zeros(1), vals=np.zeros(1)):
+  def __init__(self,  ASR=np.zeros(1), vals=np.zeros(1), Aineq=None, bineq=None):
 #    self.alpha = alpha
     self.verbosity = 'Low'
     self.ASR = ASR
     self.vals = vals
+    self.Aineq = Aineq
+    self.bineq = bineq
+    self.multifit = False
+
     
   def set_asr(self, ASR, vals):
     #set the constraint matrix (ASR) and constraint values
@@ -4612,6 +6202,17 @@ class lsq_constraint():
     else:
       self.ASR = None
       self.vals = None
+
+  def set_ineq(self, Aineq, bineq):
+    #set the constraint matrix (ASR) and constraint values
+    
+    if Aineq is not None and Aineq != []:
+#      Aprime, keep = self.eliminate_uncessary_constraints(Aineq)
+      self.Aineq = Aineq
+      self.bineq = bineq
+    else:
+      self.Aineq = None
+      self.bineq = None
       
 
   def fit(self, U, F, features=None):
@@ -4619,17 +6220,368 @@ class lsq_constraint():
     #features is the number of features to keep (columns of U) as predictors. default is to use all of them, do a normal regression
     if features is None:
       features = range(U.shape[1])
-    if self.ASR is not None:
+
+      
+    if self.ASR is not None and self.Aineq is not None:
+      return self.fit_ineq5(U[:,features], F,x0=None, Aeq=self.ASR[:,features], beq=self.vals, Aineq=self.Aineq[:,features], bineq=self.bineq)
+    elif self.ASR is None and self.Aineq is not None:
+      return self.fit_ineq5(U[:,features], F, x0=None, Aeq=None, beq=None, Aineq=self.Aineq[:,features], bineq=self.bineq)
+    elif self.ASR is not None and self.Aineq is None:
       return self.fit_old(U[:,features], F, self.ASR[:,features], self.vals, False)
     else:
       return self.fit_old(U[:,features], F, None, self.vals, False)
 
+
+#######    
+  def fit_ineq5(self, A, b, x0=None, Aeq=None, beq=None, Aineq=None, bineq=None):
+
+    if Aineq is None:
+      return self.fit_old(A, b, Aeq, beq, False)
+    if bineq is None:
+        bineq = np.zeros(Aineq.shape[0],dtype=float)
+    if Aeq is None:
+      Aeq = np.zeros((0,Aineq.shape[0]),dtype=float)
+      beq = np.zeros((0,0),dtype=float)
+    if beq is None:
+        beq = np.zeros(Aeq.shape[0],dtype=float)
+
+    std = (A).std(axis=0)
+    for i in range(std.shape[0]):
+      if abs(std[i]) <  1e-5:
+        std[i] = 1.0
+
+    A = (A)/np.tile(std,(A.shape[0],1))
+    Aeq_t=(Aeq)/np.tile(std,(Aeq.shape[0],1))
+    Aineq=(Aineq)/np.tile(std,(Aineq.shape[0],1))
+    beq_t = copy.copy(beq)
+    
+    A_big = np.concatenate((A, Aineq),axis=0)
+    b_big = np.concatenate((b,1e-6*np.ones(Aineq.shape[0])))
+    
+    unstable = True #approximate constraint logic
+
+    weights = np.ones(Aineq.shape[0],dtype=float)
+    for q in range(10):
+
+      x = self.fit_old(A_big, b_big, Aeq_t, beq_t, False)
+      ineq_vals = np.dot(Aineq, x)
+
+      print 'iter ',q,ineq_vals
+      
+      unstable=False
+      for i in range(Aineq.shape[0]):
+        if ineq_vals[i] < 0.1e-6:
+          unstable=True
+          weights[i] = weights[i] * 10
+          A_big[A.shape[0]+i, :] = Aineq[i,:] * weights[i]
+          b_big[A.shape[0]+i] = 1.0e-6 * weights[i]
+          
+      if unstable == False:
+        break
+      else:
+        print 'new weights', weights
+        
+    return x/std  
+      
+
+#######
+  def fit_ineq4(self, A, b, x0=None, Aeq=None, beq=None, Aineq=None, bineq=None):
+
+    std = (A).std(axis=0)
+    for i in range(std.shape[0]):
+      if abs(std[i]) <  1e-5:
+        std[i] = 1.0
+
+    A = (A)/np.tile(std,(A.shape[0],1))
+
+
+
+        
+    constraints = []
+    if Aeq is not None:
+      if beq is None:
+        beq = np.zeros(Aeq.shape[0],dtype=float)
+      Aeq, keep = self.eliminate_uncessary_constraints(Aeq) #we now do this earlier as well
+      beq = beq[keep]
+    if len(keep) > 0:
+      Aeq=(Aeq)/np.tile(std,(Aeq.shape[0],1))
+      eq_cons = {'type':'eq','fun': lambda x : np.dot(Aeq, x)-beq, 'jac':lambda x : Aeq}
+      constraints.append(eq_cons)
+    else:
+      Aeq = None
+      beq = None
+      
+    if Aineq is not None:
+      Aineq=(Aineq)/np.tile(std,(Aineq.shape[0],1))
+
+
+
+      #      if bineq is None:
+      bineq = np.ones(Aineq.shape[0],dtype=float) * 1e-6
+      ineq_cons = {'type':'ineq','fun': lambda x : np.dot(Aineq, x)-bineq, 'jac':lambda x : Aineq}
+      constraints.append(ineq_cons)
+
+    if x0 is None:
+      if Aeq is not None:
+        xi = self.fit_old(A, b, Aeq, beq, False)
+      else:
+        xi = np.linalg.lstsq(A,b, rcond=None)
+      x0 = xi
+
+    print 'before fit_ineq '
+    print 'b eq'
+    print np.dot(Aeq,x0)
+    print 'b ineq'
+    print np.dot(Aineq, x0)
+
+    def fun(x):
+        return 0.5 * np.sum((x- x0)**2)
+
+    def jac(x):
+        return x-x0
+
+
+    
+    if len(constraints) > 0:
+      res = optimize.minimize(fun,x0,method='SLSQP', jac=jac, constraints = constraints) 
+      if res.status != 0:
+        print 'warning, optimize.minimize ', res.status
+        print res
+
+    else:
+      res = optimize.minimize(fun,x0,method='SLSQP', jac=jac)         
+      if res.status != 0:
+        print 'warning, optimize.minimize ', res.status
+        print res
+
+    x0=res.x #new initial guess from previous minimization
+
+    def fun(x):
+        return 0.5 * np.sum((np.dot(A, x.T)-b)**2)
+
+    def jac(x):
+        return np.dot((np.dot(A, x.T)-b), A)
+
+    if len(constraints) > 0:
+      res = optimize.minimize(fun,x0,method='SLSQP', jac=jac, constraints = constraints) 
+      if res.status != 0:
+        print 'warning, optimize.minimize ', res.status
+        print res
+
+    else:
+      res = optimize.minimize(fun,x0,method='SLSQP', jac=jac)         
+      if res.status != 0:
+        print 'warning, optimize.minimize ', res.status
+        print res
+      
+    
+    print 'done fit_ineq '
+    print 'd eq'
+    print np.dot(Aeq,res.x)
+    print 'd ineq'
+    print np.dot(Aineq, res.x)
+        
+    phi_indpt = res.x/std
+    self.coef_ = phi_indpt
+
+    return phi_indpt
+#######    
+
+  def fit_ineq3(self, A, b, x0=None, Aeq=None, beq=None, Aineq=None, bineq=None):
+
+    if Aineq is None:
+      return self.fit_old(A, b, Aeq, beq, False)
+    if bineq is None:
+        bineq = np.zeros(Aineq.shape[0],dtype=float)
+    if Aeq is None:
+      Aeq = np.zeros((0,Aineq.shape[0]),dtype=float)
+      beq = np.zeros((0,0),dtype=float)
+    if beq is None:
+        beq = np.zeros(Aeq.shape[0],dtype=float)
+
+    std = (A).std(axis=0)
+    for i in range(std.shape[0]):
+      if abs(std[i]) <  1e-5:
+        std[i] = 1.0
+
+    A = (A)/np.tile(std,(A.shape[0],1))
+    Aeq=(Aeq)/np.tile(std,(Aeq.shape[0],1))
+    Aineq=(Aineq)/np.tile(std,(Aineq.shape[0],1))
+        
+    unstable = True #approximate constraint logic
+
+    keep = range(A.shape[1])
+    remove = []
+
+    x = np.zeros(A.shape[1],dtype=float)
+    
+    while unstable:
+      x0 = self.fit_old(A[:,keep], b, Aeq[:,keep], beq, False)
+      x[:] = 0.0
+      x[keep] = x0
+      ineq_vals = np.dot(Aineq[:,keep], x0)
+      print 'ineq_vals', ineq_vals
+      unstable = False
+      for ii in range(ineq_vals.shape[0]-1,-1,-1):
+        v = ineq_vals[ii]
+        if v < bineq[ii] - 1e-8:
+
+          t = Aineq[ii,keep] * x0
+          it = np.argmin(t)
+          print 'remove phi', keep[it]
+          keep.pop(it)
+          unstable = True
+          break
+        
+          
+    return x/std  
+
+  def fit_ineq2(self, A, b, x0=None, Aeq=None, beq=None, Aineq=None, bineq=None):
+
+    if Aineq is None:
+      return self.fit_old(A, b, Aeq, beq, False)
+    if bineq is None:
+        bineq = np.zeros(Aineq.shape[0],dtype=float)
+    if Aeq is None:
+      Aeq = np.zeros((0,Aineq.shape[0]),dtype=float)
+      beq = np.zeros((0,0),dtype=float)
+    if beq is None:
+        beq = np.zeros(Aeq.shape[0],dtype=float)
+
+    std = (A).std(axis=0)
+    for i in range(std.shape[0]):
+      if abs(std[i]) <  1e-5:
+        std[i] = 1.0
+
+    A = (A)/np.tile(std,(A.shape[0],1))
+    Aeq_t=(Aeq)/np.tile(std,(Aeq.shape[0],1))
+    Aineq=(Aineq)/np.tile(std,(Aineq.shape[0],1))
+    beq_t = copy.copy(beq)
+    
+    unstable = True #approximate constraint logic
+    for q in range(3):
+      x = self.fit_old(A, b, Aeq_t, beq_t, False)
+      ineq_vals = np.dot(Aineq, x)
+      print 'ineq_vals', ineq_vals
+      unstable = False
+      for ii in range(ineq_vals.shape[0]-1,-1,-1):
+        v = ineq_vals[ii]
+        if v < bineq[ii] - 1e-5:
+
+          print 'Aeq_t', Aeq_t.shape
+          print 'Aineq', Aineq.shape
+          print 'Aineq[ii,:]', Aineq[[ii],:].shape
+          
+          Aeq_t = np.concatenate((Aeq_t,Aineq[[ii],:]), axis=0)
+          #          beq = np.concatenate((beq,bineq[[ii]]), axis=0)
+          #
+          #          if self.multifit == True:
+          #            bt = np.dot(Aineq, self.phi_mf)
+          #            print 'using multifit approx val', bt
+          #          else:
+
+          beq_t = np.concatenate((beq_t,[1e-5]), axis=0)
+
+#        else:
+#            t = np.dot(Aineq, self.model)
+#            print 'using multifit approx val', bt
+#            beq = np.concatenate((beq,[t]), axis=0)
+            
+          unstable = True
+          print 'fix instability', ii
+          break
+
+      if unstable == False:
+        break
+    return x/std  
+      
+    
+  def fit_ineq(self, A, b, x0=None, Aeq=None, beq=None, Aineq=None, bineq=None):
+
+    std = (A).std(axis=0)
+    for i in range(std.shape[0]):
+      if abs(std[i]) <  1e-5:
+        std[i] = 1.0
+
+    A = (A)/np.tile(std,(A.shape[0],1))
+
+    def fun(x):
+        return 0.5 * np.sum((np.dot(A, x.T)-b)**2)
+
+    def jac(x):
+        return np.dot((np.dot(A, x.T)-b), A)
+
+
+        
+    constraints = []
+    if Aeq is not None:
+      if beq is None:
+        beq = np.zeros(Aeq.shape[0],dtype=float)
+      Aeq, keep = self.eliminate_uncessary_constraints(Aeq) #we now do this earlier as well
+      beq = beq[keep]
+    if len(keep) > 0:
+      Aeq=(Aeq)/np.tile(std,(Aeq.shape[0],1))
+      eq_cons = {'type':'eq','fun': lambda x : np.dot(Aeq, x)-beq, 'jac':lambda x : Aeq}
+      constraints.append(eq_cons)
+    else:
+      Aeq = None
+      beq = None
+      
+    if Aineq is not None:
+      Aineq=(Aineq)/np.tile(std,(Aineq.shape[0],1))
+
+
+
+      #      if bineq is None:
+      bineq = np.ones(Aineq.shape[0],dtype=float) * 1e-6
+      ineq_cons = {'type':'ineq','fun': lambda x : np.dot(Aineq, x)-bineq, 'jac':lambda x : Aineq}
+      constraints.append(ineq_cons)
+
+    if x0 is None:
+      if Aeq is not None:
+        xi = self.fit_old(A, b, Aeq, beq, False)
+      else:
+        xi = np.linalg.lstsq(A,b, rcond=None)
+      x0 = xi
+
+    print 'before fit_ineq '
+    print 'b eq'
+    print np.dot(Aeq,x0)
+    print 'b ineq'
+    print np.dot(Aineq, x0)
+
+      
+    if len(constraints) > 0:
+      res = optimize.minimize(fun,x0,method='SLSQP', jac=jac, constraints = constraints) 
+      if res.status != 0:
+        print 'warning, optimize.minimize ', res.status
+        print res
+
+    else:
+      res = optimize.minimize(fun,x0,method='SLSQP', jac=jac)         
+      if res.status != 0:
+        print 'warning, optimize.minimize ', res.status
+        print res
+
+    print 'done fit_ineq '
+    print 'd eq'
+    print np.dot(Aeq,res.x)
+    print 'd ineq'
+    print np.dot(Aineq, res.x)
+        
+    phi_indpt = res.x/std
+    self.coef_ = phi_indpt
+
+    return phi_indpt
+#######    
+    
   def fit_old(self, U,F,A, constraint_values, eliminated=False):
     #this implements a lsq sqauare fitting. U is dependent matrix, F is data, with linear constraints A  equal to constraint_values.
 
-    if A is None or A is []: #no constraints!!! normal lsq
+    if (A is None or A is []) : #no constraints!!! normal lsq
+      phi_indpt = self.lstsq(U,F)
       self.coef_ = phi_indpt
-      return self.lstsq(A,F)      
+      return phi_indpt
 
     if not eliminated:
       Aprime, keep = self.eliminate_uncessary_constraints(A) #we now do this earlier as well
@@ -4638,11 +6590,12 @@ class lsq_constraint():
       Aprime = A
       cvp = constraint_values
 
-    [Q,R] = sp.linalg.qr(Aprime.T)
     
-
-    nnonzero = np.linalg.matrix_rank(Aprime.T)
-
+    if Aprime.shape[0] > 0:  
+      [Q,R] = sp.linalg.qr(Aprime.T)
+      nnonzero = np.linalg.matrix_rank(Aprime.T)
+    else:
+      nnonzero = 0
 
     if nnonzero == 0:
       print 'no constraints detected, turning off constraints'
@@ -4809,10 +6762,24 @@ class lsq_constraint():
         score.append(self.score(Ut[:,features], Ft)) #we score the fit
 
         c = self.coef_
-#        print 'c', c
-        
+
+        if np.max(np.abs(c)) > 1e2: # likely correlation, eliminate excessively high coefs first
+#          print 'c', c
+#          print 'correlated case, taking no action', np.max(np.abs(c))
+          print 'correlated case, taking action', np.max(np.abs(c))
+          c1=np.abs(np.array(c))
+          ct=np.max(np.argwhere(c1>1e2))
+          c1[ct] = 0.0
+          self.coef_[ct] = 0.0
+          c[ct]=0.0
+#          ranks = np.argsort(c1**2)
+#          threshold = 1
+
+#        else: #normal case
         ranks = np.argsort(c**2)
+#        threshold = 1
         threshold = min(step, np.sum(support) - n_features_target)
+
 
 #        print 'threshold', threshold, step, np.sum(support),n_features_target
 
@@ -4838,10 +6805,12 @@ class lsq_constraint():
 
 
 
-  def run_rfe_cv(self, U, F, step=1, A=None, c=None):
+  def run_rfe_cv(self, U, F, step=1, A=None, c=None, Aineq=None, bineq=None):
     #does cross validation of rfe
     if A is not None and c is not None:
       self.set_asr(A, c)      
+    if Aineq is not None:
+      self.set_ineq(Aineq, bineq)      
 
     cv = KFold(n_splits=6, shuffle=True) #shuffle is pretty important if you have limited data for some predictors
 

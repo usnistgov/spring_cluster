@@ -44,14 +44,15 @@ ctypedef np.int_t DTYPE_int_t
 
 #ctypedef np.int8_t DTYPE_int_small_t
 
-cdef int rotdim(np.ndarray[DTYPE_t, ndim=2] R ,np.ndarray[DTYPE_int_t, ndim=1] ijk, np.ndarray[DTYPE_int_t, ndim=1] ijk_p, int dim):
+cdef float rotdim(np.ndarray[DTYPE_t, ndim=2] R ,np.ndarray[DTYPE_int_t, ndim=1] ijk, np.ndarray[DTYPE_int_t, ndim=1] ijk_p, int dim):
     cdef float Rt = 1.0
     cdef int d
 #    cdef np.ndarray[DTYPE_t, ndim=2] R_trans = R.transpose()
     for d in range(dim):
 #      Rt *= R_trans[ijk_p[d],ijk[d] ]
       Rt *= R[ijk_p[d],ijk[d] ]
-    return int(Rt)
+#    return int(Rt)
+    return Rt
 
 cdef int supercell_index_f(np.ndarray[DTYPE_int_t, ndim=1] supercell, np.ndarray[DTYPE_int_t, ndim=1] dat):
 
@@ -166,6 +167,9 @@ def analyze_syms(np.ndarray[DTYPE_int_t, ndim=3] dataset, list groups, np.ndarra
   cdef unsigned int count
   cdef np.ndarray[DTYPE_t, ndim=2] R = np.zeros((3,3),dtype=DTYPE)
   cdef np.ndarray[DTYPE_t, ndim=2] Rt = np.zeros((3,3),dtype=DTYPE)
+
+  cdef np.ndarray[DTYPE_t, ndim=2] R_rs = np.zeros((3,3),dtype=DTYPE)
+  cdef np.ndarray[DTYPE_t, ndim=2] Rt_rs = np.zeros((3,3),dtype=DTYPE)
   
   cdef unsigned int c_ijk 
   cdef unsigned int c2_ijk
@@ -183,8 +187,13 @@ def analyze_syms(np.ndarray[DTYPE_int_t, ndim=3] dataset, list groups, np.ndarra
   cdef int cm2
   cdef groupcount, groupcount1
   cdef int dimtot = np.sum(dim)
-  cdef np.ndarray[DTYPE_int_t, ndim=3]    MM = np.zeros((tensordim,tensordim,nsymm),dtype=DTYPE_int)
-  cdef np.ndarray[DTYPE_int_t, ndim=3]    MM_inv = np.zeros((tensordim,tensordim,nsymm),dtype=DTYPE_int)
+  cdef np.ndarray[DTYPE_t, ndim=3]    MM = np.zeros((tensordim,tensordim,nsymm),dtype=DTYPE)
+  cdef np.ndarray[DTYPE_t, ndim=3]    MM_inv = np.zeros((tensordim,tensordim,nsymm),dtype=DTYPE)
+
+  cdef np.ndarray[DTYPE_t, ndim=3]    MM_rs = np.zeros((tensordim,tensordim,nsymm),dtype=DTYPE)
+  cdef np.ndarray[DTYPE_t, ndim=3]    MM_inv_rs = np.zeros((tensordim,tensordim,nsymm),dtype=DTYPE)
+  
+
   cdef int mem1 = min(100000,natdim*ngroups+1)
 #  cdef np.ndarray[DTYPE_t, ndim=3]    Trans_inv = np.zeros(mem1,tensordim,tensordim,dtype=DTYPE)
 #  cdef np.ndarray[DTYPE_t, ndim=3]    Trans_inv1
@@ -210,7 +219,7 @@ def analyze_syms(np.ndarray[DTYPE_int_t, ndim=3] dataset, list groups, np.ndarra
   cdef np.ndarray[DTYPE_int_t, ndim=2] NONZERO_list_smaller
   cdef np.ndarray[DTYPE_t, ndim=2] T = np.zeros((tensordim,tensordim), dtype=DTYPE)
   cdef np.ndarray[DTYPE_t, ndim=2] v = np.zeros((tensordim,tensordim), dtype=DTYPE)
-  cdef np.ndarray[DTYPE_int_t, ndim=2] vi = np.zeros((tensordim,tensordim), dtype=DTYPE_int)
+  cdef np.ndarray[DTYPE_t, ndim=2] vi = np.zeros((tensordim,tensordim), dtype=DTYPE)
   cdef np.ndarray[DTYPE_int_t, ndim=1] vt = np.zeros(tensordim, dtype=DTYPE_int)
   cdef np.ndarray[DTYPE_t, ndim=2] Tinv = np.zeros((tensordim,tensordim), dtype=DTYPE)
   cdef np.ndarray[DTYPE_int_t, ndim=2] permute_precalc = np.zeros((permutedim[1], tensordim),dtype=DTYPE_int)
@@ -218,7 +227,7 @@ def analyze_syms(np.ndarray[DTYPE_int_t, ndim=3] dataset, list groups, np.ndarra
   cdef np.ndarray[DTYPE_single_t, ndim=2] Scompact
 #  cdef np.ndarray[DTYPE_single_t, ndim=2] SSS_mat
 #    cdef np.ndarray[DTYPE_t, ndim=2] Scompact
-  cdef np.ndarray[DTYPE_int_t, ndim=2] eye = np.eye(tensordim, dtype=DTYPE_int)
+  cdef np.ndarray[DTYPE_t, ndim=2] eye = np.eye(tensordim, dtype=DTYPE)
   cdef np.ndarray[DTYPE_t, ndim=1] s = np.zeros((tensordim), dtype=DTYPE, order='F')
   cdef np.ndarray[DTYPE_single_t, ndim=2] B = np.zeros((tensordim,tensordim),dtype=DTYPE_single,order='F')
   cdef np.ndarray[DTYPE_single_t, ndim=2] B1
@@ -285,9 +294,20 @@ def analyze_syms(np.ndarray[DTYPE_int_t, ndim=3] dataset, list groups, np.ndarra
       for acount,i in enumerate(P[1][p]):
         P_array[acount,p] = i
 
+#  print 'keep', keep
   for count, rot in enumerate(dataset): #loop over point group s
+
+#    R = np.array(rot.transpose(),dtype=DTYPE)
+#    Rt = R.transpose()
+
     R = np.dot(np.dot(np.linalg.inv(Acell),rot.transpose()),Acell).transpose()
     Rt = R.transpose()
+
+#    print 'count, rot', count
+#    print rot
+#    print 'R'
+#    print R
+    
 #    RR.append(R)
 
 #    for c_ijk in range(tensordim):
@@ -305,7 +325,15 @@ def analyze_syms(np.ndarray[DTYPE_int_t, ndim=3] dataset, list groups, np.ndarra
 #        print 'x'
         MM[c2_ijk,c_ijk,count] = rotdim(R,ijk, ijk2, dim[1])
         MM_inv[c2_ijk,c_ijk,count] = rotdim(Rt,ijk, ijk2, dim[1]) #Now contains all the information on how R operates on ijk, ijk2
-#  for p_s in range(permutedim[0]):
+
+#        MM_rs[c2_ijk,c_ijk,count] = rotdim(Rt, ijk, ijk2, dim[1])
+#        MM_inv_rs[c2_ijk,c_ijk,count] = rotdim(Rt,ijk, ijk2, dim[1]) #Now contains all the information on how R operates on ijk, ijk2
+
+        #  for p_s in range(permutedim[0]):
+
+#    print 'MM'
+#    print MM[:,:,count]
+
     if dim[1] != 0:
       for p in range(permutedim[1]):
         for c2_ijk in keep:
@@ -467,6 +495,12 @@ def analyze_syms(np.ndarray[DTYPE_int_t, ndim=3] dataset, list groups, np.ndarra
     for q in range(tensordim):
       for q1 in range(tensordim):
         vi[q,q1] = MM[q,permute_precalc[p_k,q1],symm_count]-eye[q,q1]
+#    print 'vi', p_k, symm_count
+#    print vi
+#    print 'MM'
+#    print MM[:,permute_precalc[p_k,:],symm_count]
+#    print
+    
     hs = []
     for q in range(tensordim): #need to check for uniqueness of constraint.  This greatly reduces memory usage / speeds gaussian elimination
       hashstr = (vi[q,:]).tostring()          #create something hashable to we can check for duplicates efficiently.  the adding/rounding deals with some numerical issues identifying the strings
@@ -494,6 +528,9 @@ def analyze_syms(np.ndarray[DTYPE_int_t, ndim=3] dataset, list groups, np.ndarra
   timesecondloop = time.time()
   for groupcount, (group, group_list) in enumerate(zip(groups_c,groups)): #loop over non-equiv atoms-groups
 
+#    print 'groupcount, group, group_list', groupcount, group, group_list
+
+    
     TIME_small = [time.time()]
     tg = 0.0
     tt = 0.0
@@ -521,6 +558,9 @@ def analyze_syms(np.ndarray[DTYPE_int_t, ndim=3] dataset, list groups, np.ndarra
 #        Scompact[ct,:] = SSS[ct]
 #      Scompact[ct,:] = SSS_mat[ct]
 
+#    print 'Scompact'
+#    print Scompact
+    
     if phiobj.verbosity == 'High':
       print 'Scompact shape ' + str([len(SSS[groupcount]),len(keep)])
 #      print 'Scompact shape ' + str([scount,tensordim])
