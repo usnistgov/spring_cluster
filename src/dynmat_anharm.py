@@ -336,6 +336,8 @@ class dyn:
         #            zero = False
 #        print 'load_harmonic'
 
+#        print 'dynmat load_harmonic zeff', zeff
+
         if self.verbosity == 'High':
             print 'start read ' + filename
 
@@ -355,6 +357,7 @@ class dyn:
                 
                 exit()
                 
+#            print 'DYNMAT'
             vasp=True
             self.nonan = True
 #            print A
@@ -371,14 +374,19 @@ class dyn:
 
             self.nat = coords.shape[0]
 
-            self.A = A
-            self.celldm0 = 1.0
+            self.celldm0 = np.linalg.norm(A[0,:])
+            #            self.celldm0 = 8.0
+            
+#            self.A = A
+            #            self.celldm0 = np.linalg.norm(A[0,:])
+            self.A = A / self.celldm0
+
             self.Areal = self.A * self.celldm0
 
             self.brav = 0
             self.pos_crys = coords
             self.pos_real = np.dot(coords, A)
-            self.pos = self.pos_real
+            self.pos = self.pos_real / self.celldm0
             self.names = types
             
             names_dict = {}
@@ -386,23 +394,32 @@ class dyn:
             
             for c,t in enumerate(set(types)):
                 print [c, t,dict_amu[t]]
-                names_dict[c] = [t,dict_amu[t]]
+                names_dict[c+1] = [t,dict_amu[t]]
                 dict_names[t] = c
                 
             type_nums = []
             for c,t in enumerate(types):
-                type_nums.append([c+1,dict_names[t]])
+                type_nums.append([c+1,1+dict_names[t]])
+
             self.names = type_nums
+            print 'names1'
+            print self.names
             self.dict = names_dict
 
                 
             self.zstar = zeff
-                
 
+#            print 'loadzeff1 ' , self.zstar
+#            print 'loaddiel1 ' , self.eps
+            sys.stdout.flush()
+
+            
             self.R = [1,1,1]
             self.B = np.linalg.inv(self.A)
             
-    
+
+
+            
 
         else:
             if stringinput == False:
@@ -426,8 +443,9 @@ class dyn:
                 
                 self.ntype=ntype
                 self.nat = nat
-                self.A = A
-                self.celldm0 = 1.0
+                self.celldm0 = np.linalg.norm(A[0,:])
+#                self.celldm0 = 8.0
+                self.A = A / self.celldm0
                 self.Areal = self.A * self.celldm0
 
                 self.brav = 0
@@ -471,20 +489,22 @@ class dyn:
 
             self.Areal = self.A * self.celldm0
 
-            self.celldm0 = np.linalg.norm(self.Areal[0,:])
+#            self.celldm0 = np.linalg.norm(self.Areal[0,:])
+#            self.celldm0 = 8.0
             self.A = self.Areal / self.celldm0
 
             self.vol = abs(np.linalg.det(self.Areal))
-            if self.verbosity == 'High':
+            #           if self.verbosity == 'High':
+            self.B = np.linalg.inv(self.A)
 
+            if False:
                 print 'vol ' + str(self.vol)
                 print self.A
                 print 'Areal'
                 print self.Areal
-                print 'self.B'
+                print 'self.B dynmat_anharm.py '
                 print self.B
 
-            self.B = np.linalg.inv(self.A)
 
             for n in range(0,self.ntype):
                 line = f.readline().replace("'",' ')
@@ -494,10 +514,15 @@ class dyn:
             for n in range(0,self.nat):
                 line = f.readline()
                 sp = line.split()
+                print line
                 self.names.append([int(sp[0]), int(sp[1])])
                 self.pos.append([float(sp[2]),float(sp[3]),float(sp[4])])
 
-
+#            print 'names1 old'
+#            print self.names
+            
+            self.pos = np.array(self.pos)*np.linalg.norm(self.Areal[0,:])/self.celldm0
+            
             self.pos_crys = np.dot(np.array(self.pos),np.linalg.inv(self.A))
             self.pos_real = np.dot(self.pos_crys,self.Areal)
 
@@ -562,6 +587,11 @@ class dyn:
                     self.zstar.append(zt)
     #                print self.zstar
             #load load fc's
+#            print 'loadzeff2 ' , self.zstar
+#            print 'loaddiel2 ', self.eps
+
+            sys.stdout.flush()
+            
             line = f.readline()
             sp = line.split()
             self.R = map(int,sp)
@@ -572,6 +602,38 @@ class dyn:
             self.ndict = {}
 
 
+        if False:
+
+
+            print 'DYNMAT'
+            print self.nonan
+            print self.eps
+            print self.ntype
+
+            print self.nat
+
+            print self.A 
+            print self.celldm0 
+            print self.Areal 
+
+            print            self.brav 
+            print 'pos_crys'
+            print self.pos_crys 
+            print self.pos_real
+            print self.pos 
+
+            print 'names'
+            print self.names 
+            print 'dict'
+            print self.dict 
+
+            print 'zstar'
+            print self.zstar 
+                
+
+            print self.R 
+            print self.B
+            print 'ENDDYNMAT'
         
         if zero:
             #do not load force constants
@@ -721,6 +783,15 @@ class dyn:
         
         
 #        print self.harm
+
+
+
+            
+
+
+
+
+
 
     def harmXX(self):
         T = np.zeros((3,3),dtype=float)
@@ -1205,7 +1276,7 @@ class dyn:
         return self.kb * x**2 * math.exp(x)/(math.exp(x) - 1.0)**2
 
     def get_hk(self,k):
-        print 'get_hk'
+#        print 'get_hk'
         c=0
         cfac = np.zeros(self.nat, dtype=complex)
 
@@ -1216,12 +1287,16 @@ class dyn:
         arg = np.exp((-2.0j)*np.pi*(self.M_ws[:,:,:,0]*k[0] + self.M_ws[:,:,:,1]*k[1] + self.M_ws[:,:,:,2]*k[2] ))
         hk = np.sum(arg * self.harm_ws,0)   
 
-        print 'dynmat self.nonan', self.nonan
+#        print 'dynmat self.nonan', self.nonan
         if self.nonan:
 #            print 'adding nonan'
             hktemp = np.zeros((self.nat*3,self.nat*3), dtype=complex)
             nonan_only = self.add_nonan(hktemp,k)
-#            nonan_only = self.add_nonan_faster(k)
+
+#            print 'nonan_only', k
+#            print nonan_only[0:3,0:3]
+
+            #            nonan_only = self.add_nonan_faster(k)
             hk += nonan_only
 #            hk = nonan_only
 
@@ -1420,7 +1495,13 @@ class dyn:
 #        print hk_prime[:,:,0].real
 #        print hk_prime[:,:,0].imag
 
-        
+
+#        print 'hk_prime'
+#        print hk_prime
+#        print 'hk_prime_prime'
+#        print hk_prime_prime
+#        print
+
 
         if self.nonan:
 #            hktemp = np.zeros((self.nat*3,self.nat*3), dtype=complex)
@@ -1529,6 +1610,22 @@ class dyn:
         hk2 = np.zeros((self.nat*3,self.nat*3), dtype=complex)
         EVALS = []
         VELS = []
+
+        print 'zeff list'
+        for z in self.zstar:
+            print z
+
+        print
+        print 'diel'
+        print self.eps
+
+        print
+        print 'A.real'
+        print self.Areal
+        print 'self.nonan', self.nonan
+
+        tprint  = False
+
         for k in klist:
 #            print 'asdf'
 #            print k
@@ -1601,13 +1698,33 @@ class dyn:
 #                            hk2[3*na + i, 3*nb+j] += hk[3*na + i, 3*nb+j]*cfac[nb]
 
 
+            if tprint == False:
+                print k
+                print "hk" 
+                print ((hk + np.conjugate(hk.transpose()))/2.0)
+                print
+                print "massmat"
+                print self.massmat
+                
             hk2 = ((hk + np.conjugate(hk.transpose()))/2.0) * self.massmat
-
-#            print 'hk2'
-#            print hk2
-
-
             (evals,vect) = np.linalg.eigh(hk2)
+            
+            print "evals vects"
+            for i in range(self.nat*3):
+                print i
+                print evals[i]
+                print abs(evals[i])**0.5 * self.ryd_to_cm
+                print "vect"
+                print vect[:,i]
+                print "--"
+
+
+            if tprint == False:
+                print "evals"
+                print evals
+                print abs(evals)**0.5 * self.ryd_to_cm
+                tprint = True
+
 #            print 'eval'
 #            print str(k[0]) + ' ' + str(k[1]) + ' ' + str(k[2])
             sec = []
@@ -1615,7 +1732,7 @@ class dyn:
             
             etemp = []
             for e in evals:
-                if abs(e*self.ryd_to_cm) < 1e-3:
+                if abs(e*self.ryd_to_cm) < 1e-5:
                     etemp.append(0.0)
                     sec.append(0.0)
                 elif e < 2e-19:
@@ -1808,6 +1925,7 @@ class dyn:
 #        print 'nrx'
 #        print str(nr1x) + ' ' + str(nr2x) + ' ' + str(nr3x)
         
+#        print 'nrx',  str(nr1x) + ' ' + str(nr2x) + ' ' + str(nr3x)
 
         fac = +1.0 * e2 * 4.0 * np.pi / omega
 ##        print 'fac ' + str(fac)
@@ -1869,8 +1987,11 @@ class dyn:
 #        print k
 #        print coords_crys
 
+
         pos = np.dot(coords_crys, self.Areal) / self.celldm0
 
+
+        
 #        print pos
 #        print 'ggg'
 
@@ -3496,7 +3617,7 @@ class dyn:
         return energy, forces, stress
     
 
-    def identify_atoms_harm(self,A,coords):
+    def identify_atoms_harm(self,A,coords, already_identified=False):
 
 
         x=max(map(abs,map(round,A[0,:]/(1e-5 + self.A[0,:]*self.celldm0))))
@@ -3546,33 +3667,48 @@ class dyn:
 
         CODE = []
 #        print 'ssdim ' + str(ss_dim)
-        for n in range(big_nat):
-            DIST = 1000000000000.0
+
+        if already_identified == True: #assume everything is already in correct order
             for x in range(ss_dim[0]):
                 for y in range(ss_dim[1]):
                     for z in range(ss_dim[2]):
-                        c = np.dot(coords[n,:], A)
-#                        print 'c ' + str(c)
                         for n1 in range(self.nat):
-                            c1 = np.dot(pos_crys[n1,:] + [x,y,z], A_small)
-#                            print 'c1 ' + str(c1)
-                            dist = (np.sum((c1 - c)**2))**0.5
-                            if dist < DIST:
-                                DIST = dist
-                                u_crys = np.dot(c - c1,Ainv_small)
-                                R = [x,y,z]
-                                for cc in range(unitcells):
-                                    if R_big[cc,0] == R[0] and R_big[cc,1] == R[1] and R_big[cc,2] == R[2]:
-                                        uc = cc
+                            n = n1 + z*self.nat + y * self.nat * ss_dim[2] + x * self.nat * ss_dim[2] * ss_dim[1]
 
-                                        break
-                                atom = n1
-#            print 'DIST ' + str(DIST)
-#            print str(uc) + ' ' + str(atom)
-#            R_big[n,:] = R
-            U_crys[uc,atom,:] = u_crys
-            U_bohr[uc,atom,:] = np.dot(u_crys, self.A*self.celldm0)
-            CODE.append([n,uc,atom])
+                            atom = n1
+                            uc =  x * ss_dim[2] * ss_dim[1] + y * ss_dim[2] + z
+                            U_crys[uc,atom,:] = coords[n,:]
+                            U_bohr[uc,atom,:] = np.dot(coords[n,:], self.A*self.celldm0)
+                            CODE.append([n,uc,atom])
+
+        else:
+            for n in range(big_nat):
+                DIST = 1000000000000.0
+                for x in range(ss_dim[0]):
+                    for y in range(ss_dim[1]):
+                        for z in range(ss_dim[2]):
+                            c = np.dot(coords[n,:], A)
+    #                        print 'c ' + str(c)
+                            for n1 in range(self.nat):
+                                c1 = np.dot(pos_crys[n1,:] + [x,y,z], A_small)
+    #                            print 'c1 ' + str(c1)
+                                dist = (np.sum((c1 - c)**2))**0.5
+                                if dist < DIST:
+                                    DIST = dist
+                                    u_crys = np.dot(c - c1,Ainv_small)
+                                    R = [x,y,z]
+                                    for cc in range(unitcells):
+                                        if R_big[cc,0] == R[0] and R_big[cc,1] == R[1] and R_big[cc,2] == R[2]:
+                                            uc = cc
+
+                                            break
+                                    atom = n1
+    #            print 'DIST ' + str(DIST)
+    #            print str(uc) + ' ' + str(atom)
+    #            R_big[n,:] = R
+                U_crys[uc,atom,:] = u_crys
+                U_bohr[uc,atom,:] = np.dot(u_crys, self.A*self.celldm0)
+                CODE.append([n,uc,atom])
                         
 
 
@@ -4591,7 +4727,7 @@ class dyn:
             q = Q[nq,:]
             hk,hk2,nonan, npa, npp, hkp, hkpp = self.get_hk_with_derivatives_nonanonly(q,coords)
             hk,hk2,nonan, npa, npp = self.get_hk(q)
-#            print 'hk2 ' + str(nq)
+#            print 'hk2 ' + str(nq), q
 #            print hk2
             H_Q[nq,:,:] = hk2
 
@@ -5337,8 +5473,9 @@ class dyn:
 
     def supercell_fourier_make_force_constants_derivative_harm(self,A, coords,low_memory=False):
 
-
-        unitcells,R_big,U_crys,U_bohr,Q,big_nat,CODE = self.identify_atoms_harm(A,coords)
+        TIME = [time.time()]
+        unitcells,R_big,U_crys,U_bohr,Q,big_nat,CODE = self.identify_atoms_harm(A,coords, already_identified=low_memory)
+        TIME.append(time.time())
 
 #        print 'unitcells dynmat_anharm.py ', unitcells
 #        print 'R', R_big
@@ -5374,8 +5511,10 @@ class dyn:
 #        H_Qpp = np.zeros((unitcells, self.nat*3, self.nat*3,3,3), dtype=complex)
 
 #        print self.pos_crys
+        TIME.append(time.time())
         
         hk,hk2,nonan, npa, npp, hkp, hkpp = self.get_hk_with_derivatives([0,0,0],self.pos_crys)
+        TIME.append(time.time())
 
 #        print 'hk2',hk2[0,0]
 #        print 'hkp',hkp[0,0,0]
@@ -5386,7 +5525,7 @@ class dyn:
         for nq in range(unitcells):
             q = Q[nq,:]
             hk,hk2,nonan, npa, npp = self.get_hk(q)
-#            print 'hk2', hk2
+#            print 'hk2',nq, hk2
             H_Q[nq,:,:] = hk2
 
             counter[:] = [nq/(self.supercell[1]*self.supercell[2]), (nq/self.supercell[2])%self.supercell[1], nq%(self.supercell[2])]
@@ -5397,6 +5536,7 @@ class dyn:
 #            H_Qpp[nq,:,:,:,:] = hkpp
 
 
+        TIME.append(time.time())
         H_R = np.zeros((unitcells, self.nat*3, self.nat*3), dtype=complex)
 #        H_RA = np.zeros((unitcells, self.nat*3, self.nat*3), dtype=complex)
 
@@ -5406,6 +5546,8 @@ class dyn:
 #        H_Rpp = np.zeros((unitcells, self.nat*3, self.nat*3,3,3), dtype=complex)
 
         hr = np.fft.ifftn(H_Q2,axes=(0,1,2))
+        TIME.append(time.time())
+
         for nr in range(unitcells):
             counter[:] = [nr/(self.supercell[1]*self.supercell[2]), (nr/self.supercell[2])%self.supercell[1], nr%(self.supercell[2])]
             H_R[nr,:,:] = hr[counter[0],counter[1],counter[2],:,:]
@@ -5445,23 +5587,42 @@ class dyn:
 #        np.save('HR', H_R2)
 #        np.save('HQ', H_Q2)
 
+        TIME.append(time.time())
 
         rmax = np.max(R_big,0)+1
 #        print 'rmax'
 #        print rmax
         CODE2 = np.zeros((unitcells,unitcells),dtype=int)
+#        CODE2a = np.zeros((unitcells,unitcells),dtype=int)
         R_combo = np.zeros(3,dtype=int)
+        R_combo_a = np.zeros((unitcells,3),dtype=int)
 
-
+        rbig_dict={}
+        for c in range(unitcells):
+            rbig_dict[tuple(R_big[c,:].tolist())] = c
+        
         for x in range(unitcells):
+            for c in range(3):
+                R_combo_a[:,c] = (R_big[x,c] - R_big[:,c])%rmax[c]
             for y in range(unitcells):
-                for c in range(3):
-                    R_combo[c] = (R_big[x,c] - R_big[y,c])%rmax[c]
-#                print R_big[x,c] ,  R_big[y,c], R_combo[c] 
-                for c in range(unitcells):
-                    if R_combo[0] == R_big[c,0] and R_combo[1] == R_big[c,1] and R_combo[2] == R_big[c,2]:
-                        CODE2[x,y] = c
-                        
+                CODE2[x,y] = rbig_dict[tuple(R_combo_a[y,:].tolist())]
+
+        rbig_dict={}
+
+        TIME.append(time.time())
+
+        #slow version
+##        for x in range(unitcells):
+##            for y in range(unitcells):
+##                for c in range(3):
+##                    R_combo[c] = (R_big[x,c] - R_big[y,c])%rmax[c]
+###                print R_big[x,c] ,  R_big[y,c], R_combo[c] 
+##                for c in range(unitcells):
+##                    if R_combo[0] == R_big[c,0] and R_combo[1] == R_big[c,1] and R_combo[2] == R_big[c,2]:
+##                        CODE2[x,y] = c
+##        print "CODE2", np.max(np.max(np.abs(CODE2-CODE2a)))
+
+        TIME.append(time.time())
 #        print 'CODE2'
 #        print CODE2
 
@@ -5471,7 +5632,10 @@ class dyn:
         harm_normalp = np.zeros((self.nat*3,self.nat*3,3), dtype = complex)
         harm_normalpp = np.zeros((self.nat*3,self.nat*3,3,3), dtype = float)
 
+#        print 'hkp, hkpp', np.sum(np.abs(hkp[:])),np.sum(np.abs(hkpp[:]))
+        
         if low_memory:
+#            print 'lowmem'
             harm_normal = np.zeros((self.nat*3,big_nat*3), dtype = float)
             for n1 in range(self.nat):
                 n_1,uc_1,atoms_1 = CODE[n1]
@@ -5485,6 +5649,7 @@ class dyn:
 
 
         else:
+#            print 'normalmem'
             harm_normal = np.zeros((big_nat*3,big_nat*3), dtype = float)
 
             for n1 in range(big_nat):
@@ -5497,12 +5662,20 @@ class dyn:
                         harm_normalpp[n1*3:(n1+1)*3, n2*3:(n2+1)*3,:,:] = hkpp[atoms_1*3:(atoms_1+1)*3, atoms_2*3:(atoms_2+1)*3,:,:].real
 
 
-#        print 'H_R'
-#        print H_R
-#        print 'harm_normal'
-#        print harm_normal
+                        #        print 'H_R'
+                        #        print H_R
+                        #        print 'harm_normal'
+                        #        print harm_normal
 
-                        
+        TIME.append(time.time())
+#        print 'harm_normalp,harm_normalpp', np.sum(np.abs(harm_normalp[:])),np.sum(np.abs(harm_normalpp[:]))
+
+        if False:
+            print 'dynmat_anharm.py supercell_fourier_make_force_constants_derivative_harm  TIME'
+            for T2, T1 in zip(TIME[1:],TIME[0:-1]):
+                print T2 - T1
+
+        
         return H_R, harm_normal, 1, harm_normalp, 1, harm_normalpp, H_Q2
 
 #     def supercell_fourier_make_force_constants_derivative_harm(self,A, coords):

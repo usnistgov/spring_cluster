@@ -1,7 +1,6 @@
 #!/usr/bin/evn python
 import time
 import sys
-from springconstants import springconstants
 from qe_manipulate import cell_writer
 from qe_manipulate import load_atomic_pos
 
@@ -32,12 +31,21 @@ f = open(fil,'r')
 A,atoms,coords,coords_type, masses, kpoints = load_atomic_pos(f, return_kpoints=True)
 f.close()
 
-for x in range(0,20):
+#for x in range(0,20):
+#
+#    xx = float(x)/10.0
+#
+#    coords_new = coords0 + xx * (coords - coords0)
+#    A_new = A0 + xx * (A - A0)
+#
+#    cell_writer(hs_fil, coords_new, A_new, atoms0, coords_type, kpoints0, fil+'.'+str(xx))
+
+for x in range(0,16, 2):
 
     xx = float(x)/10.0
 
     coords_new = coords0 + xx * (coords - coords0)
     A_new = A0 + xx * (A - A0)
 
-    cell_writer(hs_fil, coords_new, A_new, atoms0, coords_type0, kpoints0, fil+'.'+str(xx))
-
+    cell_writer(hs_fil, coords_new, A_new, atoms0, coords_type, kpoints0, fil+'.'+str(xx))
+    

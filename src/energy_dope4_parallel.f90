@@ -106,7 +106,8 @@ UTYPES, magnetic_mode, vacancy_mode, nsym, supercell, dim_s, dim_k, &
 !     double precision :: energy03
      double precision :: energy_local
      double precision :: time_start_p, time_end_p
-
+     double precision :: delta(3)
+     
 !!     double precision :: t
 
 !     double precision :: factor
@@ -121,7 +122,7 @@ UTYPES, magnetic_mode, vacancy_mode, nsym, supercell, dim_s, dim_k, &
 
      time_start_p = omp_get_wtime ( )        
 
-
+     ijk(:) = 0
      ssx(:,:) = 0
      sub_arr(:) = 0
 !     temp_arr(:) = 0
@@ -152,14 +153,14 @@ UTYPES, magnetic_mode, vacancy_mode, nsym, supercell, dim_s, dim_k, &
 !        write(*,*) 'FORTRAN BINOMIAL', dim_k, d, binomial(d+1), binomial_force(d+1),binomial_stress(d+1)
      enddo
 
-!$OMP PARALLEL default(private) SHARED(energy, forces, stress, nonzero, phi, strain, UTT, UTT0, UTT0_strain, UTT_ss, UTYPES,  binomial, binomial_force, binomial_stress, ncells, nnonzero, dim_k, dimtot, dim_s, vacancy_mode, magnetic_mode, nsym, supercell, nat, supercell_add, energyf )  private(s, found,  d1, sub1,       ss_ind,       nz, d, si,si2, i, j,       atoms,       ijk,       ssx,       sub_arr,       ut,ut_c,ut_s,       u0, u0s, d2, d20,       sub, sub0,       sm, sym,       a,b,       ss_num, ss_num2,       ut_ss, u0ss,       dim_y, energy_local, forces_local, stress_local)
+!xxxxxxxxxxxxxxxxxxx$xxxxOMP PARALLEL default(private) SHARED(energy, forces, stress, nonzero, phi, strain, UTT, UTT0, UTT0_strain, UTT_ss, UTYPES,  binomial, binomial_force, binomial_stress, ncells, nnonzero, dim_k, dimtot, dim_s, vacancy_mode, magnetic_mode, nsym, supercell, nat, supercell_add, energyf )  private(s, found,  d1, sub1,       ss_ind,       nz, d, si,si2, i, j,       atoms,       ijk,       ssx,       sub_arr,       ut,ut_c,ut_s,       u0, u0s, d2, d20,       sub, sub0,       sm, sym,       a,b,       ss_num, ss_num2,       ut_ss, u0ss,       dim_y, energy_local, forces_local, stress_local)
 
 
 
      ssx(:,:) = 0
      sub_arr(:) = 0
 
-!$OMP DO
+!xxxxxxxx$xxxxxxxxxxxxxOMP DO
      do s=1,ncells !loop over cells
 
         energy_local=0.0
@@ -210,7 +211,7 @@ UTYPES, magnetic_mode, vacancy_mode, nsym, supercell, dim_s, dim_k, &
 
                  !               write(*,*) 'SM', nsym(atoms(a)*ncells + sub0,atoms(b)*ncells + sub), atoms(a), sub0, atoms(b), sub
                  if ( nsym(atoms(a)*ncells + sub0,atoms(b)*ncells + sub) > sm ) then
-                    sm = nsym(atoms(a)*ncells + sub0,atoms(b)*ncells + sub)
+                   sm = nsym(atoms(a)*ncells + sub0,atoms(b)*ncells + sub)
                  endif
               end do
            end do
@@ -238,7 +239,12 @@ UTYPES, magnetic_mode, vacancy_mode, nsym, supercell, dim_s, dim_k, &
               if (magnetic_mode .and. dim_s > 0) then
                  sub = sub_arr(1)
                  sub0 = sub_arr(2)
-                 ut_c = (1.0 -  UTYPES(atoms(1)*ncells + sub) * UTYPES(atoms(2)*ncells + sub0)  )/2.0
+                 if (dim_s > 1 ) then
+                    ut_c = (1.0 -  UTYPES(atoms(1)*ncells + sub) * UTYPES(atoms(2)*ncells + sub0)  )/2.0
+                 else
+                    ut_c = 0.0
+                 endif
+                    
               elseif (vacancy_mode == 1 .and. dim_s == 1 .and. dim_k == 0) then
                  ut_c = (-1.0 + UTYPES(atoms(1)*ncells + sub))
 
@@ -274,61 +280,107 @@ UTYPES, magnetic_mode, vacancy_mode, nsym, supercell, dim_s, dim_k, &
 
 !######################## This handles the dim_k < 0 case, which isn't really useful it turns out
               if (dim_k < 0) then
-                 
+
+!!                 write(*,*) 'WEIRD CASE'
+                 sub0 = sub_arr(dim_s+2)
+
+!                 write(*,*) 'FORT HHHHH', sub0, dimtot, dim_s, dim_k, atoms, sub_arr
+                 if (dim_s == 1) then
+                    ut_c = max(UTYPES(atoms(1)*ncells + sub_arr(1)), UTYPES(atoms(2)*ncells + sub_arr(2)), UTYPES(atoms(3)*ncells + sub_arr(3)))
+                 endif
+!                 do d = 1,dim_s
+!                    sub = sub_arr(d)
+!                    ut_c = ut_c * UTYPES(atoms(d)*ncells + sub) !assemble cluster expansion contribution
+!                 end do
+
+
                  d2 = 0.0
                  d20 = 0.0
+
                  do i = 1,3
-                    d2 = d2 + (UTT(atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,i) - &
+                    delta(i) = (-UTT(atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,i) + &
                          UTT(atoms(dim_s+2)*ncells+sub_arr(dim_s+2) ,i) + &
-                         UTT0_strain( atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , &
-                         atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , i, sym) - &
-                         UTT0( atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , &
-                         atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , i, sym) )**2
-
-                    d20 = d20 + (UTT0( atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , &
-                         atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , i, sym) )**2
-                 enddo
-                 u0 = (d2**0.5-d20**0.5)
-                 energy_local = energy_local + 0.5*energyf*phi(nz)*ut_c*u0**(abs(dim_k))/ dble(sm)
-
-                 do i=1,3
-
-                    forces_local(atoms(dimtot)+1, sub0, i) = &
-                         forces_local(atoms(dimtot)+1, sub0, i) + &
-                         (energyf)*abs(dim_k) * phi(nz) *ut_c*u0**(abs(dim_k)-1.0) / dble(sm)*&
-                         d2**(-0.5) * (UTT(atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,i) - &
-                         UTT(atoms(dim_s+2)*ncells+sub_arr(dim_s+2) ,i) - &
                          UTT0_strain( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
                          atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym) + &
                          UTT0( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
                          atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym))
 
+                    d2 = d2 + (delta(i) )**2
+                    d20 = d20 + (UTT0( atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , &
+                         atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , i, sym) )**2
+!                    write(*,*) 'fort en', i, UTT(atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,i),UTT(atoms(dim_s+2)*ncells+sub_arr(dim_s+2) ,i), UTT0_strain( atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , &
+!                         atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , i, sym), UTT0( atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , &
+!                                                  atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , i, sym)
+                 enddo
+                 u0 = (d2**0.5-d20**0.5)
+                 energy_local = energy_local + 0.5*energyf*phi(nz)*ut_c*u0**(abs(dim_k))/ dble(sm)
+
+!                 write(*,*) 'FORT ENERGY', d2**0.5,d20**0.5,d2**0.5-d20**0.5
+                 !                 if (abs(0.5*energyf*phi(nz)*ut_c*u0**(abs(dim_k))/ dble(sm))> 1e-10) then
+!                    write(*,*) 'FORT ENERGY', d2**0.5, d20**0.5,  d2**0.5- d20**0.5
+!                    do i = 1,3
+!                       write(*,*) UTT(atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,i),UTT(atoms(dim_s+2)*ncells+sub_arr(dim_s+2) ,i),UTT0_strain( atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , i, sym),UTT0( atoms(dim_s+1)*ncells+sub_arr(dim_s+1),atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , i, sym)
+!                    enddo
+                    
+!                 endif
+                 
+                 do i=1,3
+                    
+!                    write(*,*) 'FGHI', phi(nz), i, atoms(dim_s+1),  sub0, ut_c, abs(dim_k), u0, d2**(0.5), d20**0.5, (energyf)*abs(dim_k) * ut_c*u0**(abs(dim_k)-1.0) / dble(sm)*&
+!                         d2**(-0.5) * (UTT(atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,i) - &
+!                         UTT(atoms(dim_s+2)*ncells+sub_arr(dim_s+2) ,i) - &
+!                         UTT0_strain( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
+!                         atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym) + &
+!                         UTT0( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
+!                         atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym))
+                    
+                    forces_local(atoms(dim_s+2)+1, sub0, i) = &
+                         forces_local(atoms(dim_s+2)+1, sub0, i) - &
+                         (energyf)*abs(dim_k) * phi(nz) *ut_c*u0**(abs(dim_k)-1.0) / dble(sm)*&
+                         d2**(-0.5) * delta(i)
+
+
+!                    (-UTT(atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,i) + &
+!                         UTT(atoms(dim_s+2)*ncells+sub_arr(dim_s+2) ,i) + &
+!                         UTT0_strain( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
+!                         atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym) + &
+!                         UTT0( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
+!                         atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym))
+                    
 
                  enddo
 
                  do i=1,3
                     do j=1,3
                        stress(i,j) = &
-                            stress(i,j) + &
+                            stress(i,j) - &
                             abs(dim_k) * phi(nz) *ut_c*u0**(abs(dim_k)-1.0) / dble(sm)*&
-                            d2**(-0.5) * (UTT(atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,i) - &
-                            UTT(atoms(dim_s+2)*ncells+sub_arr(dim_s+2) ,i) - &
-                            UTT0_strain( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
-                            atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym) + &
-                            UTT0( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
-                            atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym))*&
-                            UTT0( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
+                            d2**(-0.5) * delta(i) *  UTT0( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
                             atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , j, sym)
+
+
+!                       (-UTT(atoms(dim_s+1)*ncells+sub_arr(dim_s+1) ,i) + &
+!                            UTT(atoms(dim_s+2)*ncells+sub_arr(dim_s+2) ,i) + &
+!                            UTT0_strain( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
+!                            atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym) + &
+!                            UTT0( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
+!                            atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , i, sym))*&
+!                            UTT0( atoms(dim_s+2)*ncells+sub_arr(dim_s+2) , &
+!                            atoms(dim_s+1)*ncells+sub_arr(dim_s+1) , j, sym)
                     enddo
                  enddo
 
 !######################## This is the normal case
 
               else
-
-                 !              do dim_y = 0,dim_k
+!!
+!!                 !              do dim_y = 0,dim_k
                  do dim_y = 0,min(dim_k,2) !possible strain dimension
 
+                    if (dim_y > 0 .and. dim_s == 0 .and. dim_k == 1) then
+                       cycle
+                    endif
+                    
 !calculate various compenents of energy/force/stress terms
                     ut = 1.0
                     do d = dim_s+1,dimtot-dim_y-1
@@ -489,17 +541,18 @@ UTYPES, magnetic_mode, vacancy_mode, nsym, supercell, dim_s, dim_k, &
 
            enddo
         end do
-!$OMP CRITICAL
+!!!x$xOMP CRITICAL
      energy = energy + energy_local
      forces = forces + forces_local
      stress = stress + stress_local
-!$OMP END CRITICAL     
+!x$OMP END CRITICAL     
      end do
-!$OMP END DO
+!x$xOMP END DO
 
-!$OMP END PARALLEL
+!x$xOMP END PARALLEL
 
-
+!     write(*,*) 'forces'
+!     write(*,*) forces
      
      stress = stress * energyf * 0.5
 

@@ -15,8 +15,13 @@ import os
 from cpython cimport bool
 from montecarlo3_parallel import montecarlo
 from montecarlo_energy2_parallel import montecarlo_energy
+#from montecarlo_efs_parallel import montecarlo_energy_force_stress
+
 from montecarlo_strain2_parallel import montecarlo_strain
 from montecarlo_cluster3_parallel import montecarlo_cluster
+
+from prepare_montecarlo import prepare_montecarlo
+from prepare_montecarlo import prepare_montecarlo_atoms
 
 import qe_manipulate_vasp
 
@@ -55,54 +60,72 @@ def output_struct(phiobj, ncells, pos, strain, utypes, output_magnetic=True):
   #outputs structure in qe compatible format
 
   
+  eye=np.eye(3)
+  A=np.dot(phiobj.Acell_super, (eye + strain))
+  pos2 = np.zeros((phiobj.nat*ncells,3),dtype=float)
+  names = []
+  for s in range(ncells):
+    for at in range(phiobj.nat):
+      if at in phiobj.cluster_sites:
+        if phiobj.magnetic <= 1:
+          names.append(phiobj.reverse_types_dict[int(round(utypes[at,s]))].strip('1').strip('2').strip('3'))
+        elif phiobj.magnetic == 2:
+          if int(round(utypes[at, s,4])) in phiobj.reverse_types_dict:
+            names.append(phiobj.reverse_types_dict[int(round(utypes[at, s,4]))].strip('1').strip('2').strip('3'))
+          else:
+            names.append(phiobj.reverse_types_dict[1].strip('1').strip('2').strip('3'))
+      else:
+        names.append(phiobj.coords_type[at].strip('1').strip('2').strip('3'))
+  for s in range(ncells):
+    for at in range(phiobj.nat):
+      pos2[s*phiobj.nat + at,:] = pos[at, s, :]
   if phiobj.vasp_mode == True: #if in vasp mode, also output POSCAR.mc
-    eye=np.eye(3)
-    A=np.dot(phiobj.Acell_super, (eye + strain))
-    pos2 = np.zeros((phiobj.nat*ncells,3),dtype=float)
-    names = []
-    for s in range(ncells):
-      for at in range(phiobj.nat):
-        if at in phiobj.cluster_sites:
-          if phiobj.magnetic <= 1:
-            names.append(phiobj.reverse_types_dict[int(round(utypes[at,s]))].strip('1').strip('2').strip('3'))
-          elif phiobj.magnetic == 2:
-              names.append(phiobj.reverse_types_dict[int(round(utypes[at, s,4]))].strip('1').strip('2').strip('3'))
-        else:
-          names.append(phiobj.coords_type[at].strip('1').strip('2').strip('3'))
-    for s in range(ncells):
-      for at in range(phiobj.nat):
-        pos2[s*phiobj.nat + at,:] = pos[at, s, :]
     qe_manipulate_vasp.cell_writer(pos2, A, set(names), names, [1,1,1], 'POSCAR.mc')
-    
 
 
   outstr = ''
 
   outstr +=  'ATOMIC_POSITIONS crystal\n'
   eye=np.eye(3,dtype=float)
+  types = []
+  coords = np.zeros((ncells*phiobj.nat,3),dtype=float)
+  c=0
   for s in range(ncells):
     for at in range(phiobj.nat):
+      coords[c, :] = pos[at, s,:]
       if at in phiobj.cluster_sites:
         if phiobj.magnetic <= 1:
           outstr +=  phiobj.reverse_types_dict[int(round(utypes[at,s]))].strip('1').strip('2').strip('3') + '\t'  + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2])+'\n'            
+          types.append(phiobj.reverse_types_dict[int(round(utypes[at,s]))].strip('1').strip('2').strip('3'))
         elif phiobj.magnetic == 2:
           if output_magnetic:
-            outstr +=  phiobj.reverse_types_dict[int(round(utypes[at, s,4]))].strip('1').strip('2').strip('3') + '\t'  + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2]) + '          '+str(utypes[at, s,2]) + ' ' +str(utypes[at, s,3])+' '+str(utypes[at, s,4])+'\n'
+            if int(round(utypes[at, s,4])) in phiobj.reverse_types_dict:
+              outstr +=  phiobj.reverse_types_dict[int(round(utypes[at, s,4]))].strip('1').strip('2').strip('3') + '\t'  + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2]) + '          '+str(utypes[at, s,2]) + ' ' +str(utypes[at, s,3])+' '+str(utypes[at, s,4])+'\n'
+            else:
+              outstr +=  phiobj.reverse_types_dict[1].strip('1').strip('2').strip('3') + '\t'  + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2]) + '          '+str(utypes[at, s,2]) + ' ' +str(utypes[at, s,3])+' '+str(utypes[at, s,4])+'\n'
           else:
-            outstr +=  phiobj.reverse_types_dict[int(round(utypes[at, s,4]))].strip('1').strip('2').strip('3') + '\t'  + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2]) +'\n'
+            if int(round(utypes[at, s,4])) in phiobj.reverse_types_dict:
+              outstr +=  phiobj.reverse_types_dict[int(round(utypes[at, s,4]))].strip('1').strip('2').strip('3') + '\t'  + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2]) +'\n'
+            else:
+              outstr +=  phiobj.reverse_types_dict[1].strip('1').strip('2').strip('3') + '\t'  + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2]) +'\n'
+              
       else:
         outstr +=  phiobj.coords_type[at].strip('1').strip('2').strip('3') + '\t' + str(pos[at, s,0]) + '   ' + str(pos[at, s,1]) + '   ' + str(pos[at, s,2])+'\n'
+        types.append(phiobj.coords_type[at].strip('1').strip('2').strip('3'))
+      c += 1
   outstr +=  'CELL_PARAMETERS bohr\n'
   A=np.dot(phiobj.Acell_super, (eye + strain))
   for i in range(3):
     outstr +=  str(A[i,0]) + '  ' + str(A[i,1]) + '  ' + str(A[i,2])+'\n'
-  print 'sssssssssss'
-  print outstr
-  print 'fffffffffff'
-  print
-  return outstr
+#  print 'sssssssssss'
+#  print outstr
+#  print 'fffffffffff'
+#  print
+  return outstr, A, pos2, names
 
-def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_pot, nsteps_arr, step_size_arr, report_freq, A, np.ndarray[DTYPE_t, ndim=2] coords, types, list dims, list phi_tensors, list nonzeros, cell = [], runaway_energy=-20.0, startonly=False):
+
+  
+def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_pot, nsteps_arr, step_size_arr, report_freq, A, np.ndarray[DTYPE_t, ndim=2] coords, types, list dims, list phi_tensors, list nonzeros, cell = [], runaway_energy=-20.0, correspond=None, startonly=False, neb_mode=False, vmax_val=1.0, smax_val=0.07 ):
 
 #The MC is seperated into 3 steps. First, the step sizes are allowed
 #to vary and are adjusted so half the steps are accepted. Second,
@@ -116,9 +139,7 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
   cdef np.ndarray[DTYPE_t, ndim=3] mod_matrix
   cdef np.ndarray[DTYPE_int_t, ndim=1] supercell_c = np.zeros(3,dtype=DTYPE_int)
   cdef int nat = phiobj.nat
-#  cdef np.ndarray[DTYPE_t, ndim=4] UTT0
-#  cdef np.ndarray[DTYPE_t, ndim=4] UTT0_strain
-#  cdef np.ndarray[DTYPE_t, ndim=3] UTT_ss
+
   cdef np.ndarray[DTYPE_int_t, ndim=2] nsym
   cdef np.ndarray[DTYPE_int_t, ndim=1] tcell = np.zeros(3,dtype=DTYPE_int)
   cdef int s0,s1,s2,s0a,s1a,s2a,c0,c1,c2, snew, dimtot
@@ -126,10 +147,20 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
   cdef np.ndarray[DTYPE_t, ndim=2]   coords_super
   cdef np.ndarray[DTYPE_t, ndim=3]   coords_refAref 
   cdef np.ndarray[DTYPE_t, ndim=4]   v2 
-  cdef int i,j,k,l,at,at2, s, d 
+
+  cdef int i,j,k,l,at,at2, s, d , m, n
   cdef np.ndarray[DTYPE_int_t, ndim=1] SSX = np.zeros(3,dtype=DTYPE_int)
   cdef np.ndarray[DTYPE_int_t, ndim=1] SUB = np.zeros(20,dtype=DTYPE_int)
 
+
+  TIME = [time.time()]
+  
+  if phiobj.magnetic_anisotropy != -999:
+    magnetic_aniso = phiobj.magnetic_anisotropy
+  else:
+    magnetic_aniso = -999
+
+  
   cluster_sites = np.array(phiobj.cluster_sites,dtype=int, order='F')
 
   eye = np.eye(3,dtype=float)
@@ -138,24 +169,10 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
 
   np.random.seed(int(time.clock()*1237))
 
-  TIME = [time.time()]
-
+  
   ncells = 1
   AA = np.array(A)
   outstr = ''
-
-#The beginning here has to get a lot of matricies step  
-
-  #number of symmetric distances in old supercell
-  supercell_orig=phiobj.supercell
-  ncells_orig = np.prod(supercell_orig)
-  nsym_orig = np.zeros((nat*ncells_orig,nat*ncells_orig), dtype=DTYPE_int,order='F')
-  for na in range (nat):
-    for sa in range(ncells_orig):
-      for nb in range(nat):
-        for sb in range(ncells_orig):
-          nsym_orig[na*ncells_orig+sa,nb*ncells_orig+sb] = len(phiobj.moddict_prim[na*nat*ncells_orig**2 + sa*ncells_orig*nat + nb*ncells_orig + sb])
-
 
   if len(cell)== 3:
     supercell[:] = cell[:]
@@ -169,6 +186,7 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
   print
   print 'supercell detected' + str(supercell) + ' : ' +str(ncells)
 
+  supercell_orig = phiobj.supercell
   phiobj.set_supercell(supercell, nodist=True)
 
   if coords.shape[0] != phiobj.natsuper:
@@ -176,275 +194,65 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
     print [coords.shape[0] , phiobj.natsuper]
 
 
-  supercell_add, supercell_sub = calc_supercell_add(supercell)
+  TIME.append(time.time())
+  if tuple(supercell.tolist()) not in phiobj.setup_mc:
+    prepare_montecarlo(phiobj,supercell, dims, phi_tensors, nonzeros, supercell_orig)
 
 
-  correspond, vacancies = phiobj.find_corresponding(coords,phiobj.coords_super)
-
-
-  coords,types, correspond = phiobj.fix_vacancies(vacancies, coords, correspond, types)
-
-
-  dA = (A - phiobj.Acell_super)
-  et = np.dot(np.linalg.inv(phiobj.Acell_super),A) - np.eye(3)
-  strain =  np.array(0.5*(et + et.transpose()), dtype=float, order='F')
-
-  UTYPES = np.zeros((phiobj.nat*np.prod(supercell),1),dtype=float)
-
-  u = np.zeros((phiobj.nat,np.prod(supercell),3),dtype=DTYPE)
-  types_reorder_dict = {}
-  for [c0,c1, RR] in correspond: #this figures out which atom is which, and how far they are from the reference positions
-    sss = phiobj.supercell_index[c1]
-    u[c1%phiobj.nat,sss,:] = np.dot(coords[c0,:]+RR,A) - np.dot(phiobj.coords_super[c1,:] ,A)
-    types_reorder_dict[c1] = types[c0]
-
-    if types[c0] in phiobj.types_dict:
-      UTYPES[(c1%phiobj.nat) * ncells + sss,0] = float(phiobj.types_dict[types[c0]])
-    else:
-      UTYPES[(c1%phiobj.nat) * ncells + sss,0] = 0.0
-
-  types = []
-  for i in range(ncells*phiobj.nat):
-    types.append(types_reorder_dict[i])
-
-  types_reorder = types
-
-  if phiobj.magnetic == 0 or phiobj.magnetic == 1 : #this figures out the cluster variables
-#    UTYPES = np.reshape(UTYPES_a, (ncells*nat,1))
-    UTYPES = np.array(UTYPES,dtype=float,order='F')
-    dim_u = 1
-  elif phiobj.magnetic == 2: #heisenberg spin case
-    
-    UTYPES_a=copy.copy(UTYPES)
-    UTYPES = np.zeros((ncells*nat, 5),dtype=float, order='F')
-    UTYPES[:,0] = (-UTYPES_a[:,0]+1.0) * np.pi/2.0 #theta
-    UTYPES[:,1] = 0.0  #phi
-    UTYPES[:,2] = 0.0 #x
-    UTYPES[:,3] = 0.0 #y
-    UTYPES[:,4] = np.cos(UTYPES[:,0]) #z
-
-    UTYPES_a = []
-
-    dim_u = 5
-    
-    print 'starting utypes heisenberg'
-    print 'theta, phi, x,y,z'
-    for i in range(ncells*nat):
-      print str(UTYPES[i,0])+'\t'+str(UTYPES[i,1])+'\t'+str(UTYPES[i,2:5])
-    print '--'
-    print
-
-
-  u_crys = np.zeros((phiobj.nat,ncells,3),dtype=float, order='F')             
-  u_crys_cells = np.zeros((supercell[0],supercell[1],supercell[2],phiobj.nat,3),dtype=float)             
-  uf = np.zeros((supercell[0],supercell[1],supercell[2],phiobj.nat,3),dtype=complex)             
-  coords_unitcells = np.zeros((phiobj.nat,ncells,3),dtype=float, order='F')   
-  coords_ref = np.zeros((phiobj.nat,ncells,3),dtype=float, order='F')         
-  coords_super = np.zeros((phiobj.nat*ncells,3),dtype=DTYPE, order='F')         
-  coords_refAref = np.zeros((phiobj.nat,ncells,3),dtype=DTYPE, order='F')     
-
-
-  coords_super = phiobj.coords_super[:,:]
-
-  for [c0,c1, RR] in correspond:
-    sss = phiobj.supercell_index[c1]
-    coords_ref[c1%phiobj.nat, sss,:] = phiobj.coords_super[c1,:]
-    coords_refAref[c1%phiobj.nat, sss,:] = np.dot(phiobj.coords_super[c1,:] , phiobj.Acell_super)
-
-
-  #prepare supermatricies
-  dim_max = 0
-  phi_tot = 0
-  nonzeros_tot = 0
-  nonzeros_w = 0
-
-
-  symmats = []
-  symmats_target = []
-#  nonzeros_copy = []
-
-  sym_max_total = 1
-
-
-  #get some information on the force constants, that we will use shortly
-  for [dim, phi,  nonzero] in zip(dims, phi_tensors, nonzeros):
-    nonzero_copy = copy.copy(nonzero)
-
-    dim_max = max([dim[0] + dim[1], dim_max])
-    phi_tot += phi.shape[0]
-    nonzeros_tot += nonzero_copy.shape[0]
-    symmat = np.zeros(phi.shape,dtype=int)
-    symmat_target = np.zeros(phi.shape,dtype=int)
-    nonzeros_w = max([nonzeros_w, nonzero_copy.shape[1]])
-    #figure out nsym ahead of time
-    dimtot = dim[0] + dim[1]
-    sub = np.zeros(dimtot,dtype=int)
-    ssx = np.zeros(3,dtype=int)
-#    ssx_mod = np.zeros((dimtot-1,3),dtype=int)
-    for nz in range(nonzero_copy.shape[0]):
-      atoms = nonzero_copy[nz,0:dimtot]
-      for d in range(0,dimtot-1):
-        ssx[:] = nonzero[nz,dimtot+dim[1]+(d)*3:dimtot+dim[1]+(d+1)*3]
-        ssx[0] = ssx[0]%supercell_orig[0]
-        ssx[1] = ssx[1]%supercell_orig[1]
-        ssx[2] = ssx[2]%supercell_orig[2]
-        sub[d] = ssx[0]*(supercell_orig[1])*(supercell_orig[2]) + ssx[1]*(supercell_orig[2]) + ssx[2]
-      ns = 1
-      for a1,s1 in zip(atoms, sub):
-        for a2,s2 in zip(atoms, sub):
-          ns = max(nsym_orig[a1*ncells_orig+s1,a2*ncells_orig+s2], ns)
-          sym_max_total = max(sym_max_total, ns)
-      symmat[nz] = ns
-
-      for d in range(0,dimtot-1):
-        ssx[:] = nonzero[nz,dimtot+dim[1]+(d)*3:dimtot+dim[1]+(d+1)*3]
-        ssx[0] = ssx[0]%supercell[0]
-        ssx[1] = ssx[1]%supercell[1]
-        ssx[2] = ssx[2]%supercell[2]
-        sub[d] = ssx[0]*(supercell[1])*(supercell[2]) + ssx[1]*(supercell[2]) + ssx[2]
-
-    symmats.append(symmat)
-
-  phi_huge = np.zeros(nonzeros_tot,dtype=float, order='F')
-  nonzero_huge = np.zeros((nonzeros_tot,max(nonzeros_w+4, 10)),dtype=int, order='F')
-
-  atoms = np.zeros(dim_max, dtype=int)
-  sub = np.zeros(dim_max*3, dtype=int)
-  ssx = np.zeros(3, dtype=int)
-  phi_tot=0
+  use_borneffective=phiobj.use_borneffective
+  use_fixed=phiobj.use_fixedcharge
+  
+  [supercell_add,supercell_sub, coords_ref, nonzero_huge_hugeT, phi_huge_huge, harm_normal, dim_max, interaction_mat,interaction_len_mat,atoms_nz ] = phiobj.setup_mc[tuple(supercell.tolist())]
 
   TIME.append(time.time())
 
-  #put the phi information in a unified format
-  for [dim, phi,  nonzero, ns] in zip(dims, phi_tensors, nonzeros, symmats):
-    phi_huge[phi_tot:phi_tot +phi.shape[0]] = phi[:]
+  u, cells, types_reorder, strain, u_crys_cells, coords_unitcells,UTYPES, zeff_converted, harm_normal_converted, v2, v, vf, forces_fixed, stress_fixed, energy_fixed0, dim_u, correspond =   prepare_montecarlo_atoms(phiobj, A, coords, types, supercell, coords_ref, correspond)
 
 
-    nonzero_huge[phi_tot:phi_tot +phi.shape[0], 4:nonzero.shape[1]+4] = nonzero[:,:]
-    nonzero_huge[phi_tot:phi_tot +phi.shape[0], 0] = dim[0]
-    nonzero_huge[phi_tot:phi_tot +phi.shape[0], 1] = dim[1]
-
-    
-    nonzero_huge[phi_tot:phi_tot +phi.shape[0], 2] = ns[:]
-    nonzero_huge[phi_tot:phi_tot +phi.shape[0], 3] = 1
-
-    phi_tot += phi.shape[0]
+#  use_borneffective=
+#  use_fixed=False
+#  harm_normal_converted[:,:,:,:,:,:,:] = 0.0
+#  vf[:,:,:,:] = 0.0
+#  v[:,:,:,::] = 0.0
+#  zeff_converted[:,:,:] = 0.0
 
 
-  TIME.append(time.time())
-
-  #now add in the calculate the strain terms explicitly and include those
-  nonzero_huge_huge,phi_huge_huge,atoms_nz, interaction_mat, interaction_len_mat = construct_elastic(phiobj, nonzero_huge, phi_huge, supercell, supercell_orig, [], maxdim=2)
-  interaction_mat = interaction_mat+1
-
-  nonzero_huge_hugeT = np.array(nonzero_huge_huge.T, dtype=float, order='F')
-
-  nonzero_huge_huge = [] #free some memeory
-#  UTT0 = np.zeros((1,1,1,1),dtype=float)
-#  UTT0_strain =  np.zeros((1,1,1,1),dtype=float)
-#  UTT_ss =  np.zeros((1,1,1),dtype=float)
-  nonzeros = []
-  phi_tensors = []
-
-
-  TIME.append(time.time())
-
-  dim_c = np.zeros(2,dtype=int)
-
-  if phiobj.useewald:
-    useewald = 1
-    #we look up the force constants if possible
-    print 'calculating dipole f.c.s'
-    harm_normal, v, vf, hq = phiobj.get_dipole_harm(phiobj.Acell_super,phiobj.coords_super, low_memory=True)
-  else:
-    useewald = 0    
-    harm_normal = np.zeros((phiobj.nat*3,ncells*phiobj.natsuper*3),dtype=DTYPE, order='F')
-    vf = np.zeros((phiobj.nat,3,3,3),dtype=DTYPE, order='F')
-    v = np.zeros((3,3,3,3),dtype=DTYPE, order='F')
-    hq = np.zeros((supercell[0],supercell[1],supercell[2],phiobj.nat*3,phiobj.nat*3),dtype=complex, order='F')
-
-
-  v2 = np.zeros((3,3,3,3),dtype=DTYPE, order='F')
-  cells = np.zeros(3,dtype=int)
-
-  TIME.append(time.time())
-
-
-  pos_normal = np.zeros((phiobj.nat*ncells,3),dtype=float)
-  pos_normal2 = np.zeros((phiobj.nat*ncells,3),dtype=float)
-
-  harm_normal_converted = np.zeros((phiobj.nat,3,phiobj.nat,ncells,3),dtype=float,order='F')
-  A=np.dot(phiobj.Acell_super, (eye + strain))
-
-
-  #rearrange some matricies
-
-
-  for at in range(phiobj.nat):
-    for s in range(ncells):
-      coords_unitcells[at,s,:] = np.dot(u[at,s,:], np.linalg.inv(A)) + coords_ref[at,s,:]
-      pos_normal[s*phiobj.nat+at,:]  = coords_unitcells[at,s,:]
-
-      for at1 in range(phiobj.nat):
-          for i in range(3):
-            for j in range(3):
-              harm_normal_converted[at,i,at1,s,j] = harm_normal[(at)*3+i, (s*phiobj.nat+at1)*3+j]
-  hq_converted = np.zeros((supercell[0], supercell[1],supercell[2],phiobj.nat,phiobj.nat,3,3),dtype=complex)
-  for at in range(nat):
-    for i in range(3):
-      for at2 in range(nat):
-        for j in range(3):
-          hq_converted[:,:,:,at,at2,i,j] = hq[:,:,:,at*3+i, at2*3+j]
-
-  u = u - np.tile(np.mean(np.mean(u,0),0) , (phiobj.nat,np.prod(supercell),1)) #recenter the structure so average deviation is zero
-
-  harm_normal = [] #free some memory
-  hq = []
-
+#  print 'harm_normal_converted', np.max(np.max(np.max(np.max(np.max(np.max(np.max(np.abs(harm_normal_converted))))))))
+#  print 'vf', np.max(np.max(np.max(np.max(np.abs(vf)))))
+#  print 'v',  np.max(np.max(np.max(np.max(np.abs(v)))))
+  
   TIME.append(time.time())
 
   ta = time.time()
-#  if phiobj.parallel:
-  energy =  montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
-#  else:
-#    energy =  montecarlo_energy_serial( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
-
+  energy =  montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
   tb = time.time()
 
+  TIME.append(time.time())
 
-#Print some information on the starting structure
-  print
-  print 
-  print 'Starting Energy ' + str(energy) + ' time: ' + str(tb-ta)
+  t1=time.time()
+             #  energy_efs, forces, stress =  montecarlo_energy_force_stress( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
 
-  sys.stdout.flush()
+  TIME.append(time.time())
 
-
-  starting_energy=energy
-
-  if startonly==True:
-    return starting_energy
-
-
-  if phiobj.verbosity == 'High':
+  if True:
+    print 'run_mc SETUP TIME'
+    for T2, T1 in zip(TIME[1:],TIME[0:-1]):
+      print T2 - T1
   
+  
+  
+  coords_unitcells_t = copy.copy(coords_unitcells)
+  coords_unitcells_t[:,:,0] = coords_unitcells_t[:,:,0]+.01
+  coords_unitcells_t[:,:,1] = coords_unitcells_t[:,:,1]+.02
+  coords_unitcells_t[:,:,2] = coords_unitcells_t[:,:,2]+.03
+  energy_asr =  montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells_t, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+  
+  if phiobj.use_fixedcharge: #fixed charge energy
+    energy = energy + energy_fixed0
+    energy_asr = energy_asr + energy_fixed0
 
-    print
-    print 'starting u'
-    print u
-    print
 
-  print 
-  print 'starting u averaged 1 unit cell'
-  print 
-  u_aver = np.zeros((phiobj.nat,3),dtype=float)
 
-  u_aver[:,:] = np.sum(u,1)/float(np.prod(supercell))
-  u_aver[:,0] = u_aver[:,0] * supercell[0]
-  u_aver[:,1] = u_aver[:,1] * supercell[1]
-  u_aver[:,2] = u_aver[:,2] * supercell[2]
-
-  print u_aver
   print
   print 'starting strain'
   print strain
@@ -455,68 +263,101 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
 
   print '----------------'
 
-  TIME.append(time.time())
+#Print some information on the starting structure
+  print
+  print 
+  print 'Starting Energy ' + str(energy) + ' time: ' + str(tb-ta)
+  print 'ASR Energy :', energy_asr-energy, energy_asr, energy
+  
+  if runaway_energy > energy:
+    print 'warning, runaway_energy is larger than starting energy, fixing'
+    runaway_energy = energy - 1.0
+
+    
+  sys.stdout.flush()
+
+
+  starting_energy=energy
+  
+  if startonly==True:
+    return starting_energy
+
+
+
 
 
 #We finally have energything setup. Now we define the functions that run MC steps
 
   ta=0.0
   tb=0.0
-  def mc_step(nstep,ta,tb,u,accept_reject,energy,cells,u_crys,u_crys_cells,pos_normal,u_aver):
+  u_temp = np.zeros(3,dtype=float)
+  
+  def mc_step(nstep,ta,tb,u,accept_reject,energy,cells,pos_normal,u_aver):
    #this subfunction runs a position moving MC step
+
     seed = np.random.randint(1000000000000)
     ta=time.time()
 
-#    if phiobj.parallel:
-    denergy, u, accept_reject = montecarlo(interaction_mat, interaction_len_mat, supercell_add,supercell_sub,  atoms_nz,      strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,      phi_huge_huge       ,           UTYPES,harm_normal_converted, vf, phiobj.magnetic,phiobj.vacancy, useewald, nstep, seed, beta, step_size_arr[0],  dim_max,interaction_mat.shape[0], ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1],dim_u )
+    
+    #    if phiobj.parallel:
+    denergy, u, accept_reject = montecarlo(interaction_mat, interaction_len_mat, supercell_add,supercell_sub,  atoms_nz,      strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,      phi_huge_huge       ,           UTYPES,zeff_converted, harm_normal_converted, vf,forces_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, nstep, seed, beta, step_size_arr[0],  dim_max,interaction_mat.shape[0], ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1],dim_u )
 #    else:
-#      denergy, u, accept_reject = montecarlo_serial(interaction_mat, interaction_len_mat, supercell_add,supercell_sub,  atoms_nz,      strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,      phi_huge_huge       ,           UTYPES,harm_normal_converted, vf, phiobj.magnetic,phiobj.vacancy, useewald, nstep, seed, beta, step_size_arr[0],  dim_max,interaction_mat.shape[0], ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1],dim_u )
+#      denergy, u, accept_reject = montecarlo_serial(interaction_mat, interaction_len_mat, supercell_add,supercell_sub,  atoms_nz,      strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,      phi_huge_huge       ,           UTYPES,harm_normal_converted, vf, phiobj.magnetic,phiobj.vacancy, use_borneffective, nstep, seed, beta, step_size_arr[0],  dim_max,interaction_mat.shape[0], ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1],dim_u )
   
     tb=time.time()
-    u = u - np.tile(np.mean(np.mean(u,0),0) , (phiobj.nat,np.prod(supercell),1)) #recenter the structure on atom zero
+
+    u = u - np.tile(np.mean(np.mean(u,0),0) , (phiobj.nat,np.prod(supercell),1)) #recenter the structure
+
     energy += denergy
 
+    Ainv = np.linalg.inv(A)
+    
     for s in range(ncells):
       cells[:] = [s/(supercell[1]*supercell[2]), (s/supercell[2])%supercell[1], s%supercell[2]]
       for at in range(phiobj.nat):
         if phiobj.vacancy == 2 and abs(UTYPES[at*ncells + s]-1) < 1e-5:
           u[at,s,:] = [0,0,0]
 
-        u_crys[at,s,:] = np.dot(u[at,s,:], np.linalg.inv(A))        
-        u_crys_cells[cells[0],cells[1],cells[2],at,:] = u_crys[at,s,:]
-        coords_unitcells[at,s,:] = u_crys[at,s,:] + coords_ref[at,s,:]
-        pos_normal[s*phiobj.nat+at,:]  = coords_unitcells[at,s,:]
+          #        u_crys[at,s,:] = np.dot(u[at,s,:], np.linalg.inv(A))        
+          #        u_crys_cells[cells[0],cells[1],cells[2],at,:] = np.dot(u_crys[at,s,:], zeff_converted[at,s,:,:])
+          #        u_crys_cells[cells[0],cells[1],cells[2],at,:] = u_crys[at,s,:]
+        u_temp[:] = np.dot(u[at,s,:], Ainv)
+        coords_unitcells[at,s,:] = u_temp + coords_ref[at,s,:]
+        pos_normal[s*phiobj.nat+at,:]  = u_temp
+        
     u_aver[:,:] = np.sum(coords_unitcells-coords_ref,1)/float(np.prod(supercell))
 
-    return ta,tb,u,accept_reject,energy,cells,u_crys,u_crys_cells,pos_normal,u_aver
+    return ta,tb,u,accept_reject,energy,cells,pos_normal,u_aver
 
 
   def mc_step_strain(nstep,ta,tb,accept_reject,energy,A,strain,v2):
     #this subfunction does a strain step
     seed = np.random.randint(1000000000000)
     ta=time.time()
-
-    if useewald: #this precalculates some strain information in fourier space
+#    print 'u_crys MAX in ', np.max(np.abs(u_crys)), np.max(np.abs(u_crys_cells))
+    if use_borneffective: #this precalculates some strain information in fourier space
       if True:
-        uf = np.fft.ifftn(u_crys_cells,axes=(0,1,2))
-        v2[:,:,:,:] = 0.0
+
+        if False:
+          uf = np.fft.ifftn(u_crys_cells,axes=(0,1,2))
+          v2[:,:,:,:] = 0.0
+
+          for at in range(phiobj.nat):
+            for at2 in range(phiobj.nat):
+              for i in range(3):
+                for j in range(3):
+                  for k in range(3):
+                    for l in range(3):
+                      for m in range(3):
+                        for n in range(3):
+                          v2[i,j,k,l] += (np.sum(np.sum(np.sum(uf[:,:,:,at,i]*zf[:,:,:,at,j,m]*hq_converted[:,:,:,at,at2,m,n]*zf[:,:,:,at,l,n].conj()*uf[:,:,:,at2,k].conj())))).real
+          v2 = v2 * float(ncells)
+
+
+
         
-        for at in range(phiobj.nat):
-          for at2 in range(phiobj.nat):
-            for i in range(3):
-              for j in range(3):
-                for k in range(3):
-                  for l in range(3):
-                    v2[i,j,k,l] += (np.sum(np.sum(np.sum(uf[:,:,:,at,i]*hq_converted[:,:,:,at,at2,j,k]*uf[:,:,:,at2,l].conj())))).real
-        v2 = v2 * float(ncells)
-#old version
-#        v2[:,:,:,:] = np.tensordot(np.tensordot(u_crys,harm_normal_converted, axes=([0,1],[0,1])), u_crys, axes=([2,3],[0,1]))
 
-
-#    if phiobj.parallel:
-    denergy, strain, accept_reject = montecarlo_strain(supercell_add,  strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT, phi_huge_huge, UTYPES,v2, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, nstep, seed, beta, step_size_arr[1],  dim_max, ncells, nat, nonzero_huge_hugeT.shape[1], nonzero_huge_hugeT.shape[0], supercell_add.shape[0],supercell_add.shape[1], dim_u)
-#    else:
-#      denergy, strain, accept_reject = montecarlo_strain_serial(supercell_add,  strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT, phi_huge_huge, UTYPES,v2, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, nstep, seed, beta, step_size_arr[1],  dim_max, ncells, nat, nonzero_huge_hugeT.shape[1], nonzero_huge_hugeT.shape[0], supercell_add.shape[0],supercell_add.shape[1], dim_u)
+    denergy, strain, accept_reject = montecarlo_strain(supercell_add,supercell_sub,  strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT, phi_huge_huge, UTYPES,zeff_converted,harm_normal_converted, v2, v, vf,forces_fixed,stress_fixed,  phiobj.magnetic,phiobj.vacancy, use_borneffective,use_fixed, nstep, seed, beta, step_size_arr[1],  dim_max, ncells, nat, nonzero_huge_hugeT.shape[1], nonzero_huge_hugeT.shape[0], supercell_add.shape[0],supercell_add.shape[1], dim_u)
 
     tb=time.time()
     energy += denergy
@@ -531,7 +372,7 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
 
     seed = np.random.randint(100000000000000)
 #    if phiobj.parallel:
-    denergy, UTYPES = montecarlo_cluster(interaction_mat, interaction_len_mat, cluster_sites,  supercell_add,  atoms_nz, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,      phi_huge_huge, UTYPES,phiobj.magnetic,phiobj.vacancy,nstep, seed, beta, chem_pot, dim_max,cluster_sites.shape[0], ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1],interaction_mat.shape[0], dim_u )
+    denergy, UTYPES = montecarlo_cluster(interaction_mat, interaction_len_mat, cluster_sites,  supercell_add,  atoms_nz, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,      phi_huge_huge, UTYPES,phiobj.magnetic,phiobj.vacancy,nstep, seed, beta, chem_pot,magnetic_aniso, dim_max,cluster_sites.shape[0], ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1],interaction_mat.shape[0], dim_u )
 #    else:
 #      denergy, UTYPES = montecarlo_cluster_serial(interaction_mat, interaction_len_mat, cluster_sites,  supercell_add,  atoms_nz, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,      phi_huge_huge, UTYPES,phiobj.magnetic,phiobj.vacancy,nstep, seed, beta, chem_pot, dim_max,cluster_sites.shape[0], ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1],interaction_mat.shape[0], dim_u )
 
@@ -544,7 +385,8 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
 
   TIME.append(time.time())
 
-  if phiobj.verbosity == 'High':
+  #  if phiobj.verbosity == 'High':
+  if True:
     print 'run_mc preamble TIME'
     for T2, T1 in zip(TIME[1:],TIME[0:-1]):
       print T2 - T1
@@ -562,16 +404,29 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
     cluster_all = np.zeros((phiobj.nat,ncells,5,nsteps_arr[0]),dtype=float)
 
 
-#here is the first big section of actual MC
+  pos_normal = np.zeros((phiobj.nat*ncells,3),dtype=float)
+  u_aver = np.zeros((phiobj.nat,3),dtype=float)
+
+  print '-----------'
+  print
+    #here is the first big section of actual MC
   print
   print 'DOING STEP SIZE DETERMINATION'
   print '-----------------------------'
 
+  unstable = False
+  
   for s in range(nsteps_arr[0]):
 
+
+#    print 's', s
 #atomic positions step
+#    energy_mc =  energy_fixed0 +montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,  UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+#    print 'en drift0 = ' +str(energy_mc-energy)
+
     if use_atom_strain_cluster[0]:
-      ta,tb,u,accept_reject,energy,cells,u_crys,u_crys_cells,pos_normal,u_aver = mc_step(1,ta,tb,u,accept_reject,energy,cells,u_crys,u_crys_cells,pos_normal,u_aver)
+      
+      ta,tb,u,accept_reject,energy,cells,pos_normal,u_aver = mc_step(1,ta,tb,u,accept_reject,energy,cells,pos_normal,u_aver)
 
 #adjust step size based on acceptance/rejection rate
       if accept_reject[0] > accept_reject[1]:
@@ -579,6 +434,9 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
       elif accept_reject[0] < accept_reject[1]:
         step_size_arr[0] = step_size_arr[0] * 0.95
 
+#      if step_size_arr[0] > 0.35:
+#        step_size_arr[0] = 0.35
+        
       print 'New step size POS   ' + str(step_size_arr[0]) + ' due to  ' + str(accept_reject) + ' , energy is ' + str(energy)
       if phiobj.verbosity == 'High' or s == 0:
         print 'TIME POS       sweep: '+str(tb-ta)
@@ -586,15 +444,15 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
 #some printing info
     if phiobj.verbosity_mc == 'High':
 
-      for s in range(ncells):
+      for ns in range(ncells):
         for at in range(phiobj.nat):
           if at in phiobj.cluster_sites:
             if phiobj.magnetic <= 1:
-              print phiobj.reverse_types_dict[int(round(UTYPES[at*ncells+s,0]))] + '\t'  + str(pos_normal[s*phiobj.nat+at,0]) + '   ' + str(pos_normal[s*phiobj.nat+at,1]) + '   ' + str(pos_normal[s*phiobj.nat+at,2])            
+              print phiobj.reverse_types_dict[int(round(UTYPES[at*ncells+ns,0]))] + '\t'  + str(pos_normal[ns*phiobj.nat+at,0]) + '   ' + str(pos_normal[ns*phiobj.nat+at,1]) + '   ' + str(pos_normal[ns*phiobj.nat+at,2])            
             elif phiobj.magnetic == 2:
-              print phiobj.reverse_types_dict[int(round(UTYPES[at*ncells+s,4]))] + '\t'  + str(pos_normal[s*phiobj.nat+at,0]) + '   ' + str(pos_normal[s*phiobj.nat+at,1]) + '   ' + str(pos_normal[s*phiobj.nat+at,2]) + '          '+str(UTYPES[at*ncells+s,2]) + ' ' +str(UTYPES[at*ncells+s,3])+' '+str(UTYPES[at*ncells+s,4])
+              print phiobj.reverse_types_dict[int(round(UTYPES[at*ncells+ns,4]))] + '\t'  + str(pos_normal[ns*phiobj.nat+at,0]) + '   ' + str(pos_normal[ns*phiobj.nat+at,1]) + '   ' + str(pos_normal[ns*phiobj.nat+at,2]) + '          '+str(UTYPES[at*ncells+ns,2]) + ' ' +str(UTYPES[at*ncells+ns,3])+' '+str(UTYPES[at*ncells+ns,4])
           else:
-            print phiobj.coords_type[at] + '\t' + str(pos_normal[s*phiobj.nat+at,0]) + '   ' + str(pos_normal[s*phiobj.nat+at,1]) + '   ' + str(pos_normal[s*phiobj.nat+at,2])
+            print phiobj.coords_type[at] + '\t' + str(pos_normal[ns*phiobj.nat+at,0]) + '   ' + str(pos_normal[ns*phiobj.nat+at,1]) + '   ' + str(pos_normal[ns*phiobj.nat+at,2])
             
       print 'CELL_PARAMETERS bohr'
       A=np.dot(phiobj.Acell_super, (eye + strain))
@@ -604,7 +462,10 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
 
 
 #strain step
+#    energy_mc =  energy_fixed0 +montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,  UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+#    print 'en drift1 = ' +str(energy_mc-energy)
     if use_atom_strain_cluster[1]:
+#      print 'u_crys MAX before', np.max(np.abs(u_crys)), np.max(np.abs(u_crys_cells))
       ta,tb,accept_reject,energy,A,strain = mc_step_strain(1,ta,tb,accept_reject,energy,A,strain,v2)
 
 
@@ -612,12 +473,18 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
         step_size_arr[1] = step_size_arr[1] * 1.05
       elif accept_reject[0] < accept_reject[1]:
         step_size_arr[1] = step_size_arr[1] * 0.95
+
+      if step_size_arr[1] > 0.015:
+        step_size_arr[1] = 0.015
         
       print 'New step size STRAIN ' + str(step_size_arr[1]) + ' due to  ' + str(accept_reject)+ ' , energy is ' + str(energy)
       if phiobj.verbosity == 'High' or s == 0:
         print 'TIME STRAIN  sweep: '+str(tb-ta)
 
-#cluster step
+#    energy_mc =  energy_fixed0 +montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,  UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+#    print 'en drift2 = ' +str(energy_mc-energy)
+
+  #cluster step
     if use_atom_strain_cluster[2]:
       ta,tb,energy,UTYPES = mc_step_cluster(1,ta,tb,energy,UTYPES)
       if phiobj.verbosity == 'High' or s == 0:
@@ -636,26 +503,58 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
           cluster_all[at,ss,:,s] = UTYPES[at*ncells+ss,0:5]
 
 
-    if energy < runaway_energy - 0.002 and s > 5:
+    if energy < runaway_energy - 0.002 and s > 10:
       print 'STOPPING due to runaway'
-      emax = np.max(energies)
-      #look for a good structure to output
-      #we choose the latest structure with 40% of max energy
-      #this is just a guess a what structure is good to include in dft library to avoid
-      #runaway in the future.
+      unstable = True
+      energy_mc =  energy_fixed0 +montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,  UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+      print 'en drift = ' +str(energy_mc-energy)
+      energy = energy_mc
+      
+      Tmean = []
+      Tstd = []
 
-      if emax > 0.0:
-        tocalculate = 2
-        for ss in range(s,0,-1):
-          if energies[ss] > emax*0.5:
-            tocalculate = ss
-            break
-      else:
-        tocalculate = 2
-        for ss in range(s,0,-1):
-          if energies[ss] > emax*1.5:
-            tocalculate = ss
-            break
+      if neb_mode==True:
+        tocalculate=s
+
+      else: #guess best structure
+
+        for i in range(1,s): #trailing avg and std up to 50 iterations
+          start = max(i-50,0)
+          Tmean.append(np.mean(energies[start:i]))
+          Tstd.append(np.std(energies[start:i]))
+
+        emax = np.max(energies[0:s]) #maximum 
+        nmax = np.argmax(energies[0:s])
+
+
+        #if every energy after this point is below the previous energy range, then we have found the tocalculate point
+        #we start checking for this 1/4 of the way through the run, to deal with early energy changes.
+
+        tocalculate = max(s-1, 5) #default - put tocalculate near end
+
+
+
+#        for i in range(int(s/4),s-1):
+#          if np.max(energies[i:s]) < Tmean[i] - Tstd[i] * 4.0:
+#            tocalculate = i
+#            break
+
+  #      tocalculate += 1
+        emin = np.min(energies[tocalculate])
+
+          #      if nmax > 2:
+  #        emin = np.min(energies[0:nmax])
+  #      else:
+  #        emin = -abs(emax*1.5)
+
+        erange = emax - emin #proposed normal range of energies
+
+        print 'emax, emin, erange', emax, emin, erange
+
+        #look for a good structure to output
+
+      if tocalculate + 1 < s:
+        tocalculate += 1
       
 
       print 'recommended structure : ' + str(tocalculate)+', model energy is '+str(energies[tocalculate])
@@ -663,65 +562,163 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
       strain_tc = strain_all[:,:,tocalculate]
       struct_tc = struct_all[:,:,:,tocalculate]
 
-      if emax > 0:
+      if phiobj.magnetic <= 1:
+        types_tc = np.zeros((ncells*phiobj.nat,1),dtype=float)
+      else:
+        types_tc = np.zeros((ncells*phiobj.nat,5),dtype=float)
+
+      for ss in range(ncells):
+        for at in range(phiobj.nat):
+          if phiobj.magnetic <= 1:
+            types_tc[at*ncells+ss,0] = cluster_all[at,ss,tocalculate]
+          else:
+            types_tc[at*ncells+ss,0:5] = cluster_all[at,ss,:,tocalculate] 
+
+
+      lam = np.array([0.001, 0.01,0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+      #lam = np.arange(0.1,1.3,0.1)
+            
+      if neb_mode == True:
+
+        strain_tc = strain_all[:,:,tocalculate]
+        struct_tc = struct_all[:,:,:,tocalculate]
+
+
+        #need to put some limits on structure to make sure we can figure out which atoms are which
+        struct_tc[struct_tc>1.3]=1.3
+        struct_tc[struct_tc<-1.3]=-1.3
+
+        strain_tc[strain_tc>0.1]=0.1
+        strain_tc[strain_tc<-0.1]=-0.1
+        
+        lmax = 9
+        
+
+      elif neb_mode == False:
 
         print 'we vary the structure to find the maximum in energy, which is where we probably need a new data point.'
         strain_tc = strain_all[:,:,tocalculate]
         struct_tc = struct_all[:,:,:,tocalculate]
 
-        if phiobj.magnetic <= 1:
-
-          types_tc = np.zeros((ncells*phiobj.nat,1),dtype=float)
-        else:
-          types_tc = np.zeros((ncells*phiobj.nat,5),dtype=float)
-
-        for ss in range(ncells):
-          for at in range(phiobj.nat):
-            if phiobj.magnetic <= 1:
-              types_tc[at*ncells+ss,0] = cluster_all[at,ss,tocalculate]
-            else:
-              types_tc[at*ncells+ss,0:5] = cluster_all[at,ss,:,tocalculate] 
 
 
-        lam = np.arange(0.1,1.3,0.1)
+        #lam = np.arange(0.1,1.3,0.1)
+
+        lam = np.array([0.001, 0.01,0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+        #        lam = [0.001, 0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]
         e_temp = []
         emax = -1000000.
-        lmax = 10
+        lmax = 0
         for l in range(lam.shape[0]):
-          energy_mc =  montecarlo_energy( supercell_add,supercell_sub, strain_tc*lam[l], (struct_tc-coords_ref)*lam[l]+coords_ref, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   types_tc,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
-          e_temp.append(energy_mc)
-          print 'lambda energy ', lam[l], ' ',energy_mc
-          if energy_mc > emax:
+          energy_mc = energy_fixed0 + montecarlo_energy( supercell_add,supercell_sub, strain_tc*lam[l], (struct_tc-coords_ref)*lam[l]+coords_ref, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   types_tc,zeff_converted, harm_normal_converted, v, vf, forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+
+          if l == 0:
             emax = energy_mc
+        
+
+          e_temp.append(energy_mc)
+#          print 'lambda energy ', lam[l], ' ',energy_mc
+#          if energy_mc > emax:
+#            emax = energy_mc
+#            lmax = l
+
+
+          vbohr = np.dot((struct_tc[:,:,:]-coords_ref)*lam[l], phiobj.Acell_super)
+          vmax =  np.max(np.max(np.abs(vbohr[:])))
+          strain_max = np.max(np.max(np.abs(strain_tc*lam[l])))
+          print "l ", l , " ", lam[l]  , " vmax ", vmax, " strainmax " , strain_max , " ", energy_mc
+
+          if vmax < vmax_val and strain_max < smax_val  :
             lmax = l
+            emax = energy_mc
+          
+            
+          
+          
+        print 'chosen lambda is at  ', lmax, ' ', lam[lmax], " ", emax
 
-        print 'maximum is at  ', lmax, ' ', emax
+#        if lmax < 9 :
+#          lmax = 9
+#          print 'setting max to 9', e_temp[lmax]
 
-      else:
-        lam = np.arange(0.1,1.3,0.1)
-        lmax = 10
-        emax = energies[tocalculate]
+        
+#      else:
+#        lam = np.arange(0.1,1.3,0.1)
+#        lmax = 10
+#        emax = energies[tocalculate]
 
-      print
+        print
+
+        #excessive strain can make dft calcluation fail
+#        for i in range(3):
+#          for j in range(3):
+#            if i == j:
+#              if strain_tc[i,j] > 0.1:
+#                strain_tc[i,j] = 0.1
+#                strain_tc[j,i] = 0.1
+#              if strain_tc[i,j] < -0.1:
+#                strain_tc[i,j] = -0.1
+#                strain_tc[j,i] = -0.1
+#            else:
+#              if strain_tc[i,j] > 0.05:
+#                strain_tc[i,j] = 0.05
+#                strain_tc[j,i] = 0.05
+#              if strain_tc[i,j] < -0.05:
+#                strain_tc[i,j] = -0.05
+#                strain_tc[j,i] = -0.05
+
+
+        vbohr = np.dot((struct_tc[:,:,:]-coords_ref), phiobj.Acell_super)
+
+        vmax =  np.max(np.abs(vbohr[:]))
+
+        #rescale large displacments
+        if vmax > 1.3:
+          vbohr = vbohr / vmax * 1.3
+
+  #      vindex = vbohr > 1.0
+  #      vbohr[vindex] = 1.0
+
+  #      vindex = vbohr < -1.0
+  #      vbohr[vindex] = -1.0
+
+
+        struct_tc = np.dot(vbohr, np.linalg.inv(phiobj.Acell_super)) + coords_ref
+
+  #      print 'strain_tc'
+  #      print strain_tc
+  #      print 'vbohr'
+  #      print vbohr
+
+        print
+      
+      energy_mc = energy_fixed0 + montecarlo_energy( supercell_add,supercell_sub, strain_tc*lam[lmax], (struct_tc-coords_ref)*lam[lmax]+coords_ref, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   types_tc,zeff_converted, harm_normal_converted, v, vf, forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+      print 'energy_mc', energy_mc
+      
       if phiobj.magnetic == 0 or phiobj.magnetic == 1 :
-#        outstr = output_struct(phiobj, ncells, struct_all[:,:,:,tocalculate], strain_all[:,:,tocalculate], cluster_all[:,:,tocalculate])
-        outstr = output_struct(phiobj, ncells, (struct_tc-coords_ref)*lam[lmax]+coords_ref, strain_tc*lam[lmax], cluster_all[:,:,tocalculate])
+        outstr,A, pos, types = output_struct(phiobj, ncells, (struct_tc-coords_ref)*lam[lmax]+coords_ref, strain_tc*lam[lmax], cluster_all[:,:,tocalculate])
       elif phiobj.magnetic == 2: #heisenberg case    
-#        outstr = output_struct(phiobj, ncells, struct_all[:,:,:,tocalculate], strain_all[:,:,tocalculate], cluster_all[:,:,tocalculate], output_magnetic=False)
-        outstr = output_struct(phiobj, ncells, (struct_tc-coords_ref)*lam[lmax]+coords_ref, strain_tc*lam[lmax], cluster_all[:,:,tocalculate], output_magnetic=False)
+        outstr,A, pos, types = output_struct(phiobj, ncells, (struct_tc-coords_ref)*lam[lmax]+coords_ref, strain_tc*lam[lmax], cluster_all[:,:,tocalculate], output_magnetic=False)
 
-      print 'Energy ' + str(emax)
+      if phiobj.magnetic == 0 or phiobj.magnetic == 1 : #smaller distortions
+        outstr2,A7, pos7, types7 = output_struct(phiobj, ncells, (struct_tc-coords_ref)*0.5+coords_ref, strain_tc*0.25, cluster_all[:,:,tocalculate])
+      elif phiobj.magnetic == 2: #heisenberg case    
+        outstr2,A7, pos7, types7 = output_struct(phiobj, ncells, (struct_tc-coords_ref)*0.5+coords_ref, strain_tc*0.25, cluster_all[:,:,tocalculate], output_magnetic=False)
+        
+
+        
+#      print 'Energy ' + str(emax)
       print 'Goodbye (exiting...)'
 
 #      if phiobj.parallel:
-#      energy_mc =  montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+#      energy_mc =  montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, use_borneffective, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
 #      else:
-#        energy_mc =  montecarlo_energy_serial( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+#        energy_mc =  montecarlo_energy_serial( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, use_borneffective, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
 
 #      print 'en drift = ' +str(energy_mc-energy)
 
       sys.stdout.flush()
-      return energies, struct_all, strain_all, cluster_all, step_size_arr, types_reorder, supercell, coords_ref, outstr
+      return energies, struct_all, strain_all, cluster_all, step_size_arr, types_reorder, supercell, coords_ref, [outstr,outstr2], A, pos, types, unstable
 
 
   print 'FINAL STEP SIZE ' + str(step_size_arr)
@@ -729,9 +726,9 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
 
 #here we double check to see if model is consistent
 #  if phiobj.parallel:
-  energy_mc =  montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
-#  else:
-#    energy_mc =  montecarlo_energy_serial( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+  energy_mc =  energy_fixed0 +montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,  UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+  #  else:
+#    energy_mc =  montecarlo_energy_serial( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, use_borneffective, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
 
   print 'en drift = ' +str(energy_mc-energy)
   energy=energy_mc
@@ -741,12 +738,75 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
     print 'Ending. Final structure'
     tocalculate = nsteps_arr[0]-1
 
+    struct_tc = struct_all[:,:,:,tocalculate]
+    strain_tc = strain_all[:,:,tocalculate]
+
+    if phiobj.magnetic <= 1:
+      types_tc = np.zeros((ncells*phiobj.nat,1),dtype=float)
+    else:
+      types_tc = np.zeros((ncells*phiobj.nat,5),dtype=float)
+      
+    for ss in range(ncells):
+      for at in range(phiobj.nat):
+        if phiobj.magnetic <= 1:
+          types_tc[at*ncells+ss,0] = cluster_all[at,ss,tocalculate]
+        else:
+          types_tc[at*ncells+ss,0:5] = cluster_all[at,ss,:,tocalculate] 
+
+    ###########
+    #lam = np.arange(0.1,1.3,0.1)
+    lam = np.array([0.001, 0.01,0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1])
+    #    lam = [0.001, 0.01,0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]
+    e_temp = []
+    emax = -1000000.
+    lmax = 0
+    for l in range(lam.shape[0]):
+      energy_mc = energy_fixed0 + montecarlo_energy( supercell_add,supercell_sub, strain_tc*lam[l], (struct_tc-coords_ref)*lam[l]+coords_ref, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   types_tc,zeff_converted, harm_normal_converted, v, vf, forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+
+      if l == 0:
+        emax = energy_mc
+            
+
+        e_temp.append(energy_mc)
+        #          print 'lambda energy ', lam[l], ' ',energy_mc
+        #          if energy_mc > emax:
+        #            emax = energy_mc
+        #            lmax = l
+
+
+      vbohr = np.dot((struct_tc[:,:,:]-coords_ref)*lam[l], phiobj.Acell_super)
+      vmax =  np.max(np.max(np.abs(vbohr[:])))
+      strain_max = np.max(np.max(np.abs(strain_tc*lam[l])))
+      print "l ", l , " ", lam[l]  , " vmax ", vmax, " strainmax " , strain_max , " ", energy_mc
+      if vmax < vmax_val and strain_max < smax_val  :
+        lmax = l
+        emax = energy_mc
+          
+            
+          
+          
+      print 'chosen lambda is at  ', lmax, ' ', lam[lmax], " ", emax
+
+##    struct_tc = struct_tc * lam[lmax]
+
+    struct_out = (struct_tc-coords_ref)*lam[lmax]+coords_ref
+    strain_tc = strain_tc * lam[lmax]
+
+###########
+
+
     if phiobj.magnetic == 0 or phiobj.magnetic == 1 :
-      outstr = output_struct(phiobj, ncells, struct_all[:,:,:,tocalculate], strain_all[:,:,tocalculate], cluster_all[:,:,tocalculate])
+      outstr,A, pos, types = output_struct(phiobj, ncells, struct_out, strain_tc, cluster_all[:,:,tocalculate])
     elif phiobj.magnetic == 2: #heisenberg case    
-      outstr = output_struct(phiobj, ncells, struct_all[:,:,:,tocalculate], strain_all[:,:,tocalculate], cluster_all[:,:,tocalculate], output_magnetic=False)
-    print 'final energy: ' + str(energies[tocalculate])
-    return energies, struct_all, strain_all, cluster_all, step_size_arr, types_reorder, supercell, coords_ref, outstr
+      outstr,A, pos, types = output_struct(phiobj, ncells, struct_out, strain_tc, cluster_all[:,:,tocalculate], output_magnetic=False)
+
+    if phiobj.magnetic == 0 or phiobj.magnetic == 1 :
+      outstr2,A7, pos7, types7 = output_struct(phiobj, ncells, (struct_tc-coords_ref)*0.7+coords_ref , 0.5*strain_tc, cluster_all[:,:,tocalculate])
+    elif phiobj.magnetic == 2: #heisenberg case    
+      outstr2,A7, pos7, types7 = output_struct(phiobj, ncells, (struct_tc-coords_ref)*0.7+coords_ref , 0.5*strain_tc, cluster_all[:,:,tocalculate], output_magnetic=False)
+
+    print 'final energy: ' + str(energies[tocalculate]) + ' ' + str(energy_mc)
+    return energies, struct_all, strain_all, cluster_all, step_size_arr, types_reorder, supercell, coords_ref, [outstr, outstr2],A, pos, types, unstable
 
 
   print 
@@ -762,7 +822,7 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
   for st in range(nsteps_arr[1]/5):
 
     if use_atom_strain_cluster[0]:
-      ta,tb,u,accept_reject,energy,cells,u_crys,u_crys_cells,pos_normal,u_aver = mc_step(5,ta,tb,u,accept_reject,energy,cells,u_crys,u_crys_cells,pos_normal,u_aver)
+      ta,tb,u,accept_reject,energy,cells,pos_normal,u_aver = mc_step(5,ta,tb,u,accept_reject,energy,cells,pos_normal,u_aver)
 
     if use_atom_strain_cluster[1]:
       ta,tb,accept_reject,energy,A,strain = mc_step_strain(5,ta,tb,accept_reject,energy,A,strain,v2)
@@ -795,6 +855,9 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
       print strain
 
   print 'Thermalization TIME ' + str(time.time() - t_therm)
+  energy_mc =  energy_fixed0 +montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,  UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+  print 'en drift = ' +str(energy_mc-energy)
+  energy=energy_mc
 
   sys.stdout.flush()
   
@@ -802,6 +865,8 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
   chunks = int(nsteps_arr[2]/report_freq )
   repeat_freq = 2 #does each atom repeat_freq times in a row, then the strain repeat_freq times. slighly more efficient when this is higher, as you have to recalculate the fft fewer times.
 
+
+  
   print 'PRODUCTION MC'
   print str(nsteps_arr[2]) + ' steps total reported every ' +str(report_freq) +' so there are ' + str(chunks) + ' chunks.'
   print '-----------------------------------------'
@@ -833,15 +898,49 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
   c=0
   rms_max = -0.01
 
+  print
+  print 'MEMORY REPORT'
+  print '------------'
+  print energies.nbytes,energies.shape, 'energies'
+  print struct_all.nbytes,struct_all.shape, 'struct_all'
+  print strain_all.nbytes,strain_all.shape, 'strain_all'
+  print cluster_all.nbytes,cluster_all.shape, 'cluster_all'
+  print supercell_add.nbytes,supercell_add.shape, 'supercell_add'
+  print supercell_sub.nbytes,supercell_sub.shape, 'supercell_sub'
+  print coords_unitcells.nbytes,coords_unitcells.shape, 'coords_unitcells'
+  print nonzero_huge_hugeT.nbytes,nonzero_huge_hugeT.shape, 'nonzero_huge_hugeT'
+  print phi_huge_huge.nbytes,phi_huge_huge.shape, 'phi_huge_huge'
+  print UTYPES.nbytes,UTYPES.shape, 'UTYPES'
+  print zeff_converted.nbytes,zeff_converted.shape, 'zeff_converted'
+  print harm_normal_converted.nbytes,harm_normal_converted.shape, 'harm_normal_converted'
+  print v.nbytes,v.shape, 'v'
+  print vf.nbytes,vf.shape, 'vf'
+  print forces_fixed.nbytes, forces_fixed.shape, 'forces_fixed'
+  print stress_fixed.nbytes, stress_fixed.shape, 'stress_fixed'
+  print interaction_mat.nbytes,interaction_mat.shape, 'interaction_mat'
+  print interaction_len_mat.nbytes,interaction_len_mat.shape, 'interaction_len_mat'
+  print '------------'
+  print
+
+
+  
   for ch in range(chunks):
     tab = 0.0
     tab_st = 0.0
     tab_cl = 0.0
     str_en = ''
-    for st in range(report_freq/repeat_freq):
+    for st in range(report_freq/repeat_freq):#
 
+#      if use_atom_strain_cluster[0]:
+#        ta,forces_fixed, 'forces_fixed'
+#  print stress_fixed,'stress_fixed'
+
+
+  
+#  for ch in range(chunks):
       if use_atom_strain_cluster[0]:
-        ta,tb,u,accept_reject,energy,cells,u_crys,u_crys_cells,pos_normal,u_aver = mc_step(repeat_freq,ta,tb,u,accept_reject,energy,cells,u_crys,u_crys_cells,pos_normal,u_aver)
+
+        ta,tb,u,accept_reject,energy,cells,pos_normal,u_aver = mc_step(repeat_freq,ta,tb,u,accept_reject,energy,cells,pos_normal,u_aver)
         tab+=tb-ta
 
       if use_atom_strain_cluster[1]:
@@ -905,15 +1004,15 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
         cluster_abs_mean[ch] = abs(mean_cluster_current)
         cluster_111_abs_mean[ch] = abs(mean_111_cluster_current)
 
-      if print222:
-        for s in range(ncells):
-          cells[:] = [s/(supercell[1]*supercell[2]), (s/supercell[2])%supercell[1], s%supercell[2]]
-          for at in range(phiobj.nat):
-            u_222_all[cells[0]%2,cells[1]%2,cells[2]%2,at,:, ch] += np.dot(u_crys[at,s,:],A) / (ncells/8)
-            if phiobj.magnetic <= 1:
-              cluster_222_all[cells[0]%2,cells[1]%2,cells[2]%2,at, ch] += UTYPES[at*ncells+s,0] / (ncells/8)
-            else:
-              cluster_222_all[cells[0]%2,cells[1]%2,cells[2]%2,at, ch] += UTYPES[at*ncells+s,4] / (ncells/8)            
+  #    if print222:
+  #      for s in range(ncells):
+  #        cells[:] = [s/(supercell[1]*supercell[2]), (s/supercell[2])%supercell[1], s%supercell[2]]
+  #        for at in range(phiobj.nat):
+  #          u_222_all[cells[0]%2,cells[1]%2,cells[2]%2,at,:, ch] += np.dot(u_crys[at,s,:],A) / (ncells/8)
+  #          if phiobj.magnetic <= 1:
+  #            cluster_222_all[cells[0]%2,cells[1]%2,cells[2]%2,at, ch] += UTYPES[at*ncells+s,0] / (ncells/8)
+  #          else:
+  #            cluster_222_all[cells[0]%2,cells[1]%2,cells[2]%2,at, ch] += UTYPES[at*ncells+s,4] / (ncells/8)            
   #          u_222_all[cells[0]%2,cells[1]%2,cells[2]%2,at,:, ch] += u_crys[at,s,:] / (ncells/8)
 
 
@@ -942,20 +1041,6 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
           print
 
         if use_atom_strain_cluster[0]:
-
-          rms = np.sum(np.dot(pos_normal-coords_super[:,:], A)**2, 1)**0.5
-
-    #      print 'rms'
-    #      print rms
-    #      print
-          m = np.max(rms)
-          if m > rms_max:
-            rms_max = m
-          print 'mean rms, max rms, max overall rms (Bohr): ' + str(np.mean(rms))+ ' ' + str(m) + ' ' + str(rms_max)
-          print
-
-
-
 
           print
           print 'Current structure averaged over unitcells '+str(np.prod(supercell))
@@ -1012,9 +1097,9 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
 #this isn't strictly necessary
     if ch%500 == 0:
 #      if phiobj.parallel:
-      energy_mc =  montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+      energy_mc = energy_fixed0 + montecarlo_energy( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,  UTYPES,zeff_converted, harm_normal_converted, v, vf,forces_fixed,stress_fixed, phiobj.magnetic,phiobj.vacancy, use_borneffective, use_fixed, chem_pot,magnetic_aniso, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
 #      else:
-#        energy_mc =  montecarlo_energy_serial( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, useewald, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
+#        energy_mc =  montecarlo_energy_serial( supercell_add,supercell_sub, strain, coords_unitcells, coords_ref, phiobj.Acell_super, nonzero_huge_hugeT,phi_huge_huge,   UTYPES,harm_normal_converted, v, vf, phiobj.magnetic,phiobj.vacancy, use_borneffective, chem_pot, dim_max, ncells, nat, nonzero_huge_hugeT.shape[1],      nonzero_huge_hugeT.shape[0],      supercell_add.shape[0],supercell_add.shape[1], dim_u)
 
       print 'en drift = ' +str(energy_mc-energy)
       energy=energy_mc
@@ -1024,7 +1109,12 @@ def run_montecarlo(phiobj,starting_energy, use_atom_strain_cluster, beta, chem_p
 
   print
   print 'DONE MC'
+
   print
-  return energies, struct_all, strain_all, cluster_all, step_size_arr, types_reorder, supercell, coords_ref, outstr
+
+  outstr,A, pos, types = output_struct(phiobj, ncells, struct_all[:,:,:,-1], strain_all[:,:,-1], cluster_all[:,:,-1])
+
+  return energies, struct_all, strain_all, cluster_all, step_size_arr, types_reorder, supercell, coords_ref, outstr, A,pos,types, unstable
+
 
 

@@ -1622,7 +1622,7 @@ static const char __pyx_k_DTYPE_complex[] = "DTYPE_complex";
 static const char __pyx_k_nonzero_atoms[] = "nonzero_atoms";
 static const char __pyx_k_gaussian_single[] = "gaussian_single";
 static const char __pyx_k_ndarray_is_not_C_contiguous[] = "ndarray is not C contiguous";
-static const char __pyx_k_data_kfg_codes_sc_testing_src_p[] = "/data/kfg/codes/sc_testing/src/prepare_sym.pyx";
+static const char __pyx_k_users_kfg_codes_spring_cluster[] = "/users/kfg/codes/spring_cluster/src/prepare_sym.pyx";
 static const char __pyx_k_numpy_core_multiarray_failed_to[] = "numpy.core.multiarray failed to import";
 static const char __pyx_k_unknown_dtype_code_in_numpy_pxd[] = "unknown dtype code in numpy.pxd (%d)";
 static const char __pyx_k_Format_string_allocated_too_shor[] = "Format string allocated too short, see comment in numpy.pxd";
@@ -1658,7 +1658,6 @@ static PyObject *__pyx_n_s_c;
 static PyObject *__pyx_n_s_complex;
 static PyObject *__pyx_n_s_copy;
 static PyObject *__pyx_n_s_count;
-static PyObject *__pyx_kp_s_data_kfg_codes_sc_testing_src_p;
 static PyObject *__pyx_n_s_dim;
 static PyObject *__pyx_n_s_dimtot;
 static PyObject *__pyx_n_s_dtype;
@@ -1694,6 +1693,7 @@ static PyObject *__pyx_n_s_test;
 static PyObject *__pyx_n_s_theirgauss;
 static PyObject *__pyx_n_s_time;
 static PyObject *__pyx_kp_u_unknown_dtype_code_in_numpy_pxd;
+static PyObject *__pyx_kp_s_users_kfg_codes_spring_cluster;
 static PyObject *__pyx_n_s_zeros;
 static PyObject *__pyx_pf_11prepare_sym_prepare_sym(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_dim, int __pyx_v_nonzero_atoms, int __pyx_v_permutedim_k, int __pyx_v_permutedim_s, int __pyx_v_nsymm, int __pyx_v_dimtot, PyArrayObject *__pyx_v_atomlist, PyObject *__pyx_v_CORR, PyObject *__pyx_v_P_s, PyObject *__pyx_v_P_k, PyArrayObject *__pyx_v_atomshift); /* proto */
 static int __pyx_pf_5numpy_7ndarray___getbuffer__(PyArrayObject *__pyx_v_self, Py_buffer *__pyx_v_info, int __pyx_v_flags); /* proto */
@@ -2697,8 +2697,8 @@ static PyObject *__pyx_pf_11prepare_sym_prepare_sym(CYTHON_UNUSED PyObject *__py
  * 
  *               else:
  *                 ATOMS_P_alt[(aa*permutedim_k*permutedim_s + ps*permutedim_k + pk)*nsymm + count,ii+dim[0]] = atomshift[c[atoms_pk[0]],c[atoms_pk[ii]]]             # <<<<<<<<<<<<<<
- * 
- * 
+ * #            print 'prepare_sym',atoms,'=>', ATOMS_P_alt[(aa*permutedim_k*permutedim_s + ps*permutedim_k + pk)*nsymm + count,:], 'preshift', c[atoms_ps[0]],c[atoms_ps[1]], 'atoms_ps', atoms_ps[0],atoms_ps[1]
+ * #            print count, 'c', c
  */
             /*else*/ {
               __pyx_t_1 = __Pyx_GetItemInt_List(__pyx_v_atoms_pk, 0, Py_ssize_t, 1, PyInt_FromSsize_t, 1, 0, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 78, __pyx_L1_error)
@@ -2760,8 +2760,8 @@ static PyObject *__pyx_pf_11prepare_sym_prepare_sym(CYTHON_UNUSED PyObject *__py
     }
   }
 
-  /* "prepare_sym.pyx":81
- * 
+  /* "prepare_sym.pyx":82
+ * #            print count, 'c', c
  * 
  *     return ATOMS_P_alt             # <<<<<<<<<<<<<<
  */
@@ -5385,7 +5385,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_complex, __pyx_k_complex, sizeof(__pyx_k_complex), 0, 0, 1, 1},
   {&__pyx_n_s_copy, __pyx_k_copy, sizeof(__pyx_k_copy), 0, 0, 1, 1},
   {&__pyx_n_s_count, __pyx_k_count, sizeof(__pyx_k_count), 0, 0, 1, 1},
-  {&__pyx_kp_s_data_kfg_codes_sc_testing_src_p, __pyx_k_data_kfg_codes_sc_testing_src_p, sizeof(__pyx_k_data_kfg_codes_sc_testing_src_p), 0, 0, 1, 0},
   {&__pyx_n_s_dim, __pyx_k_dim, sizeof(__pyx_k_dim), 0, 0, 1, 1},
   {&__pyx_n_s_dimtot, __pyx_k_dimtot, sizeof(__pyx_k_dimtot), 0, 0, 1, 1},
   {&__pyx_n_s_dtype, __pyx_k_dtype, sizeof(__pyx_k_dtype), 0, 0, 1, 1},
@@ -5421,6 +5420,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_theirgauss, __pyx_k_theirgauss, sizeof(__pyx_k_theirgauss), 0, 0, 1, 1},
   {&__pyx_n_s_time, __pyx_k_time, sizeof(__pyx_k_time), 0, 0, 1, 1},
   {&__pyx_kp_u_unknown_dtype_code_in_numpy_pxd, __pyx_k_unknown_dtype_code_in_numpy_pxd, sizeof(__pyx_k_unknown_dtype_code_in_numpy_pxd), 0, 1, 0, 0},
+  {&__pyx_kp_s_users_kfg_codes_spring_cluster, __pyx_k_users_kfg_codes_spring_cluster, sizeof(__pyx_k_users_kfg_codes_spring_cluster), 0, 0, 1, 0},
   {&__pyx_n_s_zeros, __pyx_k_zeros, sizeof(__pyx_k_zeros), 0, 0, 1, 1},
   {0, 0, 0, 0, 0, 0, 0}
 };
@@ -5557,7 +5557,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__11 = PyTuple_Pack(27, __pyx_n_s_dim, __pyx_n_s_nonzero_atoms, __pyx_n_s_permutedim_k, __pyx_n_s_permutedim_s, __pyx_n_s_nsymm, __pyx_n_s_dimtot, __pyx_n_s_atomlist, __pyx_n_s_CORR, __pyx_n_s_P_s, __pyx_n_s_P_k, __pyx_n_s_atomshift, __pyx_n_s_ATOMS_P_alt, __pyx_n_s_atoms, __pyx_n_s_aa, __pyx_n_s_count, __pyx_n_s_ii, __pyx_n_s_ps, __pyx_n_s_pk, __pyx_n_s_t, __pyx_n_s_a, __pyx_n_s_atoms_s, __pyx_n_s_atoms_k, __pyx_n_s_atoms_ps, __pyx_n_s_acount, __pyx_n_s_i, __pyx_n_s_atoms_pk, __pyx_n_s_c); if (unlikely(!__pyx_tuple__11)) __PYX_ERR(0, 35, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__11);
   __Pyx_GIVEREF(__pyx_tuple__11);
-  __pyx_codeobj__12 = (PyObject*)__Pyx_PyCode_New(11, 0, 27, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__11, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_data_kfg_codes_sc_testing_src_p, __pyx_n_s_prepare_sym, 35, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__12)) __PYX_ERR(0, 35, __pyx_L1_error)
+  __pyx_codeobj__12 = (PyObject*)__Pyx_PyCode_New(11, 0, 27, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__11, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_users_kfg_codes_spring_cluster, __pyx_n_s_prepare_sym, 35, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__12)) __PYX_ERR(0, 35, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;

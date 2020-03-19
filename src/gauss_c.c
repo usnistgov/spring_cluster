@@ -1493,7 +1493,7 @@ static const char __pyx_k_theirgauss[] = "theirgauss";
 static const char __pyx_k_ImportError[] = "ImportError";
 static const char __pyx_k_RuntimeError[] = "RuntimeError";
 static const char __pyx_k_ndarray_is_not_C_contiguous[] = "ndarray is not C contiguous";
-static const char __pyx_k_data_kfg_codes_sc_testing_src_g[] = "/data/kfg/codes/sc_testing/src/gauss_c.pyx";
+static const char __pyx_k_users_kfg_codes_spring_cluster[] = "/users/kfg/codes/spring_cluster/src/gauss_c.pyx";
 static const char __pyx_k_numpy_core_multiarray_failed_to[] = "numpy.core.multiarray failed to import";
 static const char __pyx_k_unknown_dtype_code_in_numpy_pxd[] = "unknown dtype code in numpy.pxd (%d)";
 static const char __pyx_k_Format_string_allocated_too_shor[] = "Format string allocated too short, see comment in numpy.pxd";
@@ -1518,7 +1518,6 @@ static PyObject *__pyx_n_s_RuntimeError;
 static PyObject *__pyx_n_s_ValueError;
 static PyObject *__pyx_n_s_array;
 static PyObject *__pyx_n_s_copy;
-static PyObject *__pyx_kp_s_data_kfg_codes_sc_testing_src_g;
 static PyObject *__pyx_n_s_dtype;
 static PyObject *__pyx_n_s_end;
 static PyObject *__pyx_n_s_file;
@@ -1560,6 +1559,7 @@ static PyObject *__pyx_n_s_tmp;
 static PyObject *__pyx_kp_s_tx;
 static PyObject *__pyx_n_s_tx_2;
 static PyObject *__pyx_kp_u_unknown_dtype_code_in_numpy_pxd;
+static PyObject *__pyx_kp_s_users_kfg_codes_spring_cluster;
 static PyObject *__pyx_n_s_zeros;
 static PyObject *__pyx_pf_7gauss_c_theirgauss(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_A); /* proto */
 static int __pyx_pf_5numpy_7ndarray___getbuffer__(PyArrayObject *__pyx_v_self, Py_buffer *__pyx_v_info, int __pyx_v_flags); /* proto */
@@ -5787,7 +5787,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_ValueError, __pyx_k_ValueError, sizeof(__pyx_k_ValueError), 0, 0, 1, 1},
   {&__pyx_n_s_array, __pyx_k_array, sizeof(__pyx_k_array), 0, 0, 1, 1},
   {&__pyx_n_s_copy, __pyx_k_copy, sizeof(__pyx_k_copy), 0, 0, 1, 1},
-  {&__pyx_kp_s_data_kfg_codes_sc_testing_src_g, __pyx_k_data_kfg_codes_sc_testing_src_g, sizeof(__pyx_k_data_kfg_codes_sc_testing_src_g), 0, 0, 1, 0},
   {&__pyx_n_s_dtype, __pyx_k_dtype, sizeof(__pyx_k_dtype), 0, 0, 1, 1},
   {&__pyx_n_s_end, __pyx_k_end, sizeof(__pyx_k_end), 0, 0, 1, 1},
   {&__pyx_n_s_file, __pyx_k_file, sizeof(__pyx_k_file), 0, 0, 1, 1},
@@ -5829,6 +5828,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_s_tx, __pyx_k_tx, sizeof(__pyx_k_tx), 0, 0, 1, 0},
   {&__pyx_n_s_tx_2, __pyx_k_tx_2, sizeof(__pyx_k_tx_2), 0, 0, 1, 1},
   {&__pyx_kp_u_unknown_dtype_code_in_numpy_pxd, __pyx_k_unknown_dtype_code_in_numpy_pxd, sizeof(__pyx_k_unknown_dtype_code_in_numpy_pxd), 0, 1, 0, 0},
+  {&__pyx_kp_s_users_kfg_codes_spring_cluster, __pyx_k_users_kfg_codes_spring_cluster, sizeof(__pyx_k_users_kfg_codes_spring_cluster), 0, 0, 1, 0},
   {&__pyx_n_s_zeros, __pyx_k_zeros, sizeof(__pyx_k_zeros), 0, 0, 1, 1},
   {0, 0, 0, 0, 0, 0, 0}
 };
@@ -5953,7 +5953,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__10 = PyTuple_Pack(20, __pyx_n_s_A, __pyx_n_s_n, __pyx_n_s_m, __pyx_n_s_k, __pyx_n_s_i, __pyx_n_s_j, __pyx_n_s_irow, __pyx_n_s_Ndep, __pyx_n_s_Nind, __pyx_n_s_B, __pyx_n_s_Indind, __pyx_n_s_Inddep, __pyx_n_s_EPS, __pyx_n_s_tmp, __pyx_n_s_ta_2, __pyx_n_s_tb_2, __pyx_n_s_t0, __pyx_n_s_t1, __pyx_n_s_t2, __pyx_n_s_tx_2); if (unlikely(!__pyx_tuple__10)) __PYX_ERR(0, 16, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__10);
   __Pyx_GIVEREF(__pyx_tuple__10);
-  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(1, 0, 20, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__10, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_data_kfg_codes_sc_testing_src_g, __pyx_n_s_theirgauss, 16, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 16, __pyx_L1_error)
+  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(1, 0, 20, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__10, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_users_kfg_codes_spring_cluster, __pyx_n_s_theirgauss, 16, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 16, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;

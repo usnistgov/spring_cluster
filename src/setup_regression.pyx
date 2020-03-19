@@ -17,7 +17,10 @@ from cpython cimport bool
 #from energy import energy_fortran
 #from working import make_dist_array_smaller
 #from setup_fortran import setup_fortran
+
 from setup_fortran_parallel import setup_fortran
+from setup_fortran_parallel2 import setup_fortran2
+
 from calculate_energy_fortran import prepare_for_energy
 
 from itertools import permutations
@@ -162,9 +165,9 @@ def pre_setup_cython(phiobj, POS=[],POSold=[], Alist=[], SUPERCELL_LIST=[], TYPE
 
   TIME.append(time.time())
 
-  #generate reference structures. We do new ones only, keep others in list
+  #generate reference structures. We do new ones only, keep others in list. Nevermind do all
   ssmax = [1,1,1]
-  for c,ss in enumerate(SUPERCELL_LIST[phiobj.previously_added:]):
+  for c,ss in enumerate(SUPERCELL_LIST[:]):
 #    for i in range(3):
 #      ss[i] = int(round(np.linalg.norm(A[i,:]) / np.linalg.norm(phiobj.Acell[i,:])))
     for i in range(3):
@@ -187,14 +190,14 @@ def pre_setup_cython(phiobj, POS=[],POSold=[], Alist=[], SUPERCELL_LIST=[], TYPE
 
   TIME.append(time.time())
 
-#  print 'supercell_list'
-#  print supercell_list
+  print 'supercell_list'
+  print supercell_list
 
   natsupermax = np.prod(ssmax)*phiobj.nat
 
   print 'ss_max', ssmax, natsupermax
-
   lenPOS = len(POS[phiobj.previously_added:])
+#  print 'ac', (lenPOS, natsupermax,ssmax[0], ssmax[1], ssmax[2])
 
   atomcode = np.zeros((lenPOS, natsupermax,ssmax[0], ssmax[1], ssmax[2]),dtype=DTYPE_int)
   
@@ -214,7 +217,8 @@ def pre_setup_cython(phiobj, POS=[],POSold=[], Alist=[], SUPERCELL_LIST=[], TYPE
   #here we are making a conversion key, so we can handle translation symmetery easily by precalculating the 
   #effects of shift of x,y,z lattice vector on each atom, to find the atom it is mapped to.
 
-  atomcode_different_supercell = np.zeros((len(supercell_list), phiobj.nat, natsupermax, 12, 2),dtype=int)
+#  atomcode_different_supercell = np.zeros((len(supercell_list), phiobj.nat, natsupermax, 12, 2),dtype=int)
+  atomcode_different_supercell = np.zeros((lenPOS, phiobj.nat, natsupermax, 12, 2),dtype=int)
 
 
 #  for c, [ss,refpos, refA] in enumerate(zip(supercell_list, ref_pos, ref_A)):
@@ -227,12 +231,13 @@ def pre_setup_cython(phiobj, POS=[],POSold=[], Alist=[], SUPERCELL_LIST=[], TYPE
 
   supercells_computed = {}
 
-  for c, (ss,rp) in enumerate(zip(supercell_list, ref_pos)):
+  for c, (ss,rp) in enumerate(zip(supercell_list[phiobj.previously_added:], ref_pos[phiobj.previously_added:])):
 
 
     #precalculated
     if tuple(ss) in supercells_computed:
 
+#      print 'atomcode', c, ss, supercells_computed[tuple(ss)]
       atomcode[c, :,:,:,:] = atomcode[supercells_computed[tuple(ss)],:,:,:,:]
 
     else:
@@ -299,7 +304,7 @@ def pre_setup_cython(phiobj, POS=[],POSold=[], Alist=[], SUPERCELL_LIST=[], TYPE
 #  print 'pre'
 
 
-  for c,[u_x,uold_x,A, refA, tu_x, strain_x] in enumerate(zip(POS[phiobj.previously_added:],POSold[phiobj.previously_added:], Alist[phiobj.previously_added:], ref_A, TYPES[phiobj.previously_added:], strain[phiobj.previously_added:])): #sum over each calculation we are fitting to
+  for c,[u_x,uold_x,A, refA, tu_x, strain_x, super_l] in enumerate(zip(POS[phiobj.previously_added:],POSold[phiobj.previously_added:], Alist[phiobj.previously_added:], ref_A[phiobj.previously_added:], TYPES[phiobj.previously_added:], strain[phiobj.previously_added:], SUPERCELL_LIST[phiobj.previously_added:])): #sum over each calculation we are fitting to
 
     
     counter=c+phiobj.previously_added
@@ -313,7 +318,8 @@ def pre_setup_cython(phiobj, POS=[],POSold=[], Alist=[], SUPERCELL_LIST=[], TYPE
 
     nat = u.shape[0]
 
-    ss = (supercell_list[c][0],supercell_list[c][1], supercell_list[c][2]  )
+#    ss = (supercell_list[c][0],supercell_list[c][1], supercell_list[c][2]  )
+    ss = (super_l[0], super_l[1], super_l[2])
 
     for a1 in range(nat): #sum over atom1
       TUnew[c,a1] = float(tu_x[a1]) #this variable holds the types of each atom for the cluster expansion
@@ -341,11 +347,12 @@ def pre_setup_cython(phiobj, POS=[],POSold=[], Alist=[], SUPERCELL_LIST=[], TYPE
   supercells_computed = {}
 
   #here we make a conversion key between different sized supercells
-  for c,[u_x,uold_x,A, refA, tu_x, strain_x] in enumerate(zip(POS[phiobj.previously_added:],POSold[phiobj.previously_added:], Alist[phiobj.previously_added:], ref_A, TYPES[phiobj.previously_added:], strain[phiobj.previously_added:])): #sum over each calculation we are fitting to
+  for c,[u_x,uold_x,A, refA, tu_x, strain_x, super_l] in enumerate(zip(POS[phiobj.previously_added:],POSold[phiobj.previously_added:], Alist[phiobj.previously_added:], ref_A[phiobj.previously_added:], TYPES[phiobj.previously_added:], strain[phiobj.previously_added:], SUPERCELL_LIST[phiobj.previously_added:])): #sum over each calculation we are fitting to
 
     counter=c+phiobj.previously_added
 
-    ss = (supercell_list[c][0],supercell_list[c][1], supercell_list[c][2]  )
+#    ss = (supercell_list[c][0],supercell_list[c][1], supercell_list[c][2]  )
+    ss = (super_l[0], super_l[1], super_l[2])
 
 #    print 'ss',ss #' q ', supercell_list[c][3],supercell_list[c][4], supercell_list[c][5]
 
@@ -395,7 +402,7 @@ def pre_setup_cython(phiobj, POS=[],POSold=[], Alist=[], SUPERCELL_LIST=[], TYPE
   return atomcode, TUnew, Ustrain, UTT, UTT0_strain,UTT0,UTT_ss, atomcode_different_supercell
 
 
-def setup_lsq_cython(nind, ntotal_ind, ngroups, Tinv, dim, phiobj, startind,tensordim,ncalc,  np.ndarray[DTYPE_int_t, ndim=2] nonzero_list):
+def setup_lsq_cython(nind, ntotal_ind, ngroups, Tinv, dim, phiobj, startind,tensordim,ncalc,  np.ndarray[DTYPE_int_t, ndim=2] nonzero_list, dim_s_old):
 
   #Here, we setup the dependent variable matrix (Umat). There is a lot of setting up precalculated matricies at the beginning,
   #then the real crucial stuff happens in a Fortran routine.
@@ -576,9 +583,17 @@ def setup_lsq_cython(nind, ntotal_ind, ngroups, Tinv, dim, phiobj, startind,tens
   supercell_list = np.zeros((ncalc,6),dtype=int, order='F')
   supercell_list[:,:] = np.array(phiobj.SUPERCELL_LIST[phiobj.previously_added:])
 
-  ssmax = np.max(supercell_list, 0)
+#  print 'supercell list setup_regression.pyx'
+#  for s in range(ncalc):
+#    print supercell_list[s,:] , 't', phiobj.SUPERCELL_LIST[s]
+
+  
+  ssmax = np.max(np.array(phiobj.SUPERCELL_LIST), 0)
   natsupermax = np.prod(ssmax[0:3] )*phiobj.nat
 
+#  print 'ssmax natsupermax', ssmax,natsupermax
+#  print 'atomcode', atomcode.shape
+#  print 'atomcode_ds', phiobj.atomcode_different_supercell.shape
   phiobj.set_unitsize(natsupermax)
   unitsize = phiobj.unitsize
 
@@ -632,23 +647,35 @@ def setup_lsq_cython(nind, ntotal_ind, ngroups, Tinv, dim, phiobj, startind,tens
 #  sys.stdout.flush()
 
   if dim[1] >= 0:
-    dimtot = np.sum(dim)
+    dimtot = np.sum(np.abs(dim))
   else:
     dimtot = dim[0] + 2
     
 
+  print 'setup_fortran'
+  sys.stdout.flush()
   
-    
-  setup_fortran(Umat,atomcode,atomcode_ds, Tinv_c,phiobj.natsuper,int(phiobj.useenergy),int(phiobj.usestress),energy_weight, nonzero_list,  
-                UTT, Ustrain, UTT0, UTT0_strain, UTT_ss, TUnew,supercell_list, phiobj.magnetic, phiobj.vacancy, startind_c, nind_c,
-                dim[0],dim[1],dimtot,tensordim,symmax,unitsize,ntotal_ind,tinvcount,tensordim,tinvcount3,nstartind_c,nnind_c,nnonzero,
-                dimtot+2, ncalc,  natsupermax,ssmax[0],ssmax[1], ssmax[2] , phiobj.nat)
+  if phiobj.setup_old == True:
+    print "phiobj.setup_old" , True
+    sys.stdout.flush()
+    setup_fortran(Umat,atomcode,atomcode_ds, Tinv_c,phiobj.natsuper,int(phiobj.useenergy),int(phiobj.usestress),energy_weight, nonzero_list,  
+                  UTT, Ustrain, UTT0, UTT0_strain, UTT_ss, TUnew,supercell_list, phiobj.magnetic, phiobj.vacancy, startind_c, nind_c,
+                  dim[0],dim[1],dimtot,dim_s_old,tensordim,symmax,unitsize,ntotal_ind,tinvcount,tensordim,tinvcount3,nstartind_c,nnind_c,nnonzero,
+                  dimtot+2,  ncalc,  natsupermax,ssmax[0],ssmax[1], ssmax[2] , phiobj.nat)
 
-
-
+  else:
+    print "phiobj.setup_old" , False
+    sys.stdout.flush()
+    setup_fortran2(Umat,atomcode,atomcode_ds, Tinv_c,phiobj.natsuper,int(phiobj.useenergy),int(phiobj.usestress),energy_weight, nonzero_list,  
+                  UTT, Ustrain, UTT0, UTT0_strain, UTT_ss, TUnew,supercell_list, phiobj.magnetic, phiobj.vacancy, startind_c, nind_c,
+                  dim[0],dim[1],dimtot,dim_s_old,tensordim,symmax,unitsize,ntotal_ind,tinvcount,tensordim,tinvcount3,nstartind_c,nnind_c,nnonzero,
+                  dimtot+2,  ncalc,  natsupermax,ssmax[0],ssmax[1], ssmax[2] , phiobj.nat)
 
   TIME.append(time.time())
 
+  print 'done setup_fortran'
+  sys.stdout.flush()
+  
   if dim[1] < 0:
     return Umat, None
 
@@ -794,7 +821,8 @@ def setup_lsq_cython(nind, ntotal_ind, ngroups, Tinv, dim, phiobj, startind,tens
       coords = np.dot(phiobj.coords_super, phiobj.Acell_super)
 
       if phiobj.verbosity == 'High':
-        print ' phiobj.use_elastic_constraint true, d=2'
+        print ' phiobj.use_elastic_constraint true, d=2', dim
+
       ELASTIC_s = {}
       c = -1
 
@@ -874,10 +902,17 @@ def setup_lsq_cython(nind, ntotal_ind, ngroups, Tinv, dim, phiobj, startind,tens
                     ELASTIC_s[c1][startind_c[ngrp]+ind ] += t
 
 
+      elastic = np.zeros((len(ELASTIC_s),ASR_smaller.shape[1]),dtype=float)
+      for nnn, (key, val) in enumerate(ELASTIC_s.items()):
+        elastic[nnn,:] = val
 
-
+#      print 'elastic', dim
+#      print elastic.shape
+#      print ASR_smaller.shape
+      
+      ASR_smaller = np.concatenate((ASR_smaller, elastic), axis=0)
 #    if phiobj.use_elastic_constraint != 0 and ( dim[1] == 4 or dim[1] == 3): #could be >=, but takes forever
-
+       
   else:
     ASR_smaller = None                  
 

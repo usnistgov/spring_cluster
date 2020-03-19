@@ -21,6 +21,7 @@ from qe_manipulate import generate_random_inputs
 
 #python generate_rand_inputs.py example.in.super.222 5 0.1 0.2 0.3 H Li exact
 
+print sys.argv
 
 print 'File      ' + sys.argv[1]
 print 'Number    ' + sys.argv[2]
@@ -28,6 +29,7 @@ print 'Magnitude ' + sys.argv[3]
 
 
 exact_fraction = False
+atom_num=None
 
 if len(sys.argv) == 5:
     a = float(sys.argv[4])
@@ -37,10 +39,15 @@ elif len(sys.argv) >= 8:
     a = float(sys.argv[4])
     substitute_fraction = float(sys.argv[5])
     rand_list = sys.argv[6:8]
-    if len(sys.argv) == 9:
+    if len(sys.argv) >= 9:
         if sys.argv[8] == 'exact':
             exact_fraction = True
             print 'exact version'
+
+    if len(sys.argv) >= 10:
+        atom_num= map(int, sys.argv[9:])
+        print 'atom num ', atom_num
+        
 else:
     a = 0.0
     substitute_fraction = 0.0
@@ -50,7 +57,7 @@ else:
 print 'Substitute_fraction ' + str(substitute_fraction)
 print 'Random List ' + str(rand_list)
 
-generate_random_inputs(sys.argv[1], int(sys.argv[2]), float(sys.argv[3]), a, substitute_fraction, rand_list, exact_fraction=exact_fraction)
+generate_random_inputs(sys.argv[1], int(sys.argv[2]), float(sys.argv[3]), a, substitute_fraction, rand_list, exact_fraction=exact_fraction, atom_num=atom_num)
 
 
 print 'Done'

@@ -1,2 +1,3 @@
-testing_files/fake1a.out
-testing_files/fake1b.out
+testing_files/fake1a.out 1
+testing_files/fake1b.out 1
+testing_files/fake1a_cell1.out 0.010000000000000

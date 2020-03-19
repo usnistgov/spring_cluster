@@ -1,3 +1,6 @@
-testing_files/fake1x_cell.out
 testing_files/fake1x.out
-testing_files/fake.out
+testing_files/fake.asr.out
+testing_files/fake.cancel.out
+#testing_files/fake2x.out
+#testing_files/fake.out
+testing_files/fake1x_cell.out

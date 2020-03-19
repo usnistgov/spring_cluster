@@ -2,6 +2,8 @@
 
 from distutils.core import setup
 from distutils.extension import Extension
+import Cython.Compiler.Options
+Cython.Compiler.Options.annotate = True
 
 
 USE_CYTHON = 'auto'

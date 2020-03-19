@@ -67,7 +67,7 @@ print
 
 #create a 6x6x1 supercell to run Monte Carlo on. Obviously not enough to converge the Monte Carlo near the magnetic phase transition.
 f=open(high_sym, 'r')
-coords_super, Asuper, coords_types_super = generate_supercell(f, [6, 6, 1], outname=None)
+coords_super, Asuper, coords_types_super = generate_supercell(f, [16, 16, 1], outname=None)
 f.close()
 
 
@@ -78,16 +78,18 @@ kb = 8.617e-5
 #Asuper = lattice vectors
 #coords_super = starting coordinates
 #coords_types_super = starting spins, in this case
-steps = [0, 100, 10000] #= [number of step size deterination sweeps, number of thermalization sweeps, number of production sweeps]. We don't use step sizes in a spin only calculation
+steps = [0, 100, 2000] #= [number of step size deterination sweeps, number of thermalization sweeps, number of production sweeps]. We don't use step sizes in a spin only calculation
 
-temp = 40.0/kb #  is the temperature in K
+#temp = 40.0/kb #  is the temperature in K
+temp = 10.0/kb #  is the temperature in K
+
 chempot = 0.0  #is the chemical potential (Ryd). In this case, it represents the magnetic field
 initial_step_size = [0.01, 0.01]  #is the initial step size for atoms displacments and strain. they are not used in a spin only calculation
 use_all=[False,False,True] # says whether to perform [atom displacments, unit cell changes, and atomtype/spin moves]. In this case we only have spins
 
 
 #To run heisenberg Monte Carlo instead, uncomment following line:
-#mysc.set_magnetic_mode(m=2)
+mysc.set_magnetic_mode(m=2)
 
 
 energies, struct_all, strain_all, cluster_all, step_size, outstr = mysc.run_mc(Asuper, coords_super, coords_types_super, steps, temp, chempot, initial_step_size, use_all = use_all)

@@ -579,8 +579,6 @@ E_u    2.00  0.00 -2.00  0.00  0.00 -2.00  0.00  2.00  0.00  0.00
 
      Forces acting on atoms (Ry/au):
 
-
-     negative rho (up, down):  2.081E-06 0.000E+00
      atom    1 type  1   force =   0.00000000E+00  0.00000000E+00  0.10000000E+00
      atom    2 type  1   force =   0.00000000E+00  0.00000000E+00 -0.10000000E+00
      The non-local contrib.  to forces

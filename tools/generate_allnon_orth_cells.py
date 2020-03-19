@@ -7,7 +7,7 @@ import numpy as np
 #from gauss import theirgauss
 from qe_manipulate import *
 import math
-from phi_prim_usec import phi
+#from phi_prim_usec import phi
 import time
 
 #generates non-orthogonal supercells that correspond to a k-point grid

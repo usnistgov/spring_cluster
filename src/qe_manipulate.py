@@ -19,11 +19,11 @@ except ImportError:
     print "You can use atoms.py in the test/ directory."
     sys.exit(1)
 
-print 'loading'
+print 'loading qe_manipulate'
 
-def output_qe_style(filename,pos,A,forces,energy,stress):
+def output_qe_style(filename,pos,types, A,forces,energy,stress):
     
-    output = open(filename+'.fake.out', 'w')
+    output = open(filename, 'w')
 
     nat = pos.shape[0]
     output.write('Program PWSCF fake\n')
@@ -32,13 +32,14 @@ def output_qe_style(filename,pos,A,forces,energy,stress):
     ntypes = 1
     output.write('number of types = ' + str(ntypes)+'\n')
     output.write('celldm(1)= 1.00\n')
+    A = np.array(A)
     output.write('a(1) = ( ' + str(A[0,0]) + ' ' + str(A[0,1]) + ' ' + str(A[0,2]) + ' ) \n')
     output.write('a(2) = ( ' + str(A[1,0]) + ' ' + str(A[1,1]) + ' ' + str(A[1,2]) + ' ) \n')
     output.write('a(3) = ( ' + str(A[2,0]) + ' ' + str(A[2,1]) + ' ' + str(A[2,2]) + ' ) \n')
 
     output.write('     site n.     atom                  positions (cryst. coord.)\n')
     for na in range(nat):
-        output.write('         1           C1  tau(   1) = (  '+str(pos[na,0] )+ ' ' +str( pos[na,1])+ ' ' +str( pos[na,2])+'  )\n')
+        output.write('         1       '+types[na]+'     tau(   1) = (  '+str(pos[na,0] )+ ' ' +str( pos[na,1])+ ' ' +str( pos[na,2])+'  )\n')
     output.write('\n')
 
     output.write('!    total energy              =     '+str(energy.real)+' Ry\n')
@@ -143,6 +144,12 @@ def load_output_both(thefile, relax_load_freq=1):
         if relax_load_freq <= 0:
             relax_load_freq = -1
 
+        jobdone = False
+        scf = False
+        energy=False
+
+        vc_relax = False
+        
         for line in inputlines: #if we are doing a relaxation, we split the inputfile up into a piece for each relaxation step.
             sp = line.split()
 
@@ -153,14 +160,40 @@ def load_output_both(thefile, relax_load_freq=1):
 
                 splitfiles[-1].append('JOB DONE.\n')
 
+#                print 'starting new file with line'
+#                print sp
+#                print
+                
                 nfile += 1
                 splitfiles.append([nat])  #this is information we need at the beginning of each subfile
+                scf = False
+                energy = False
+
                 splitfiles[-1].append(celldm)
+
+
+            elif sp[0] == 'new' and sp[1] == 'unit-cell' and sp[2] == 'volume':
+
+                vc_relax = True
+                splitfiles[-1].append(line)
+
+            elif sp[0] == 'ATOMIC_POSITIONS' and vc_relax == False:
+
                 splitfiles[-1].append(a1) #a1,a2,a3 are needed if we are doing a fixed cell relaxion. they are overwritten if we are doing a vc-relax
                 splitfiles[-1].append(a2)
                 splitfiles[-1].append(a3)
+                splitfiles[-1].append(line)
 
+                
+            elif sp[0] == 'JOB' and sp[1] == 'DONE.':
+                splitfiles[-1].append('JOB DONE.\n')
 
+                if energy == False: # if no energy, then not a real entry 
+                    del splitfiles[-1]
+
+                jobdone = True
+                break
+            
             elif sp[0] == 'Program': #beginning of file
                 nfile += 1
                 splitfiles.append([])
@@ -183,13 +216,28 @@ def load_output_both(thefile, relax_load_freq=1):
                 a3=line
                 splitfiles[-1].append(line)
 
-
-
-            else:
+#            elif sp[0] == 'BFGS' and sp[1] == 'Geometry' and sp[2] == 'Optimization':
+            elif sp[0] == 'Self-consistent' and sp[1] == 'Calculation':
+                scf = True
                 splitfiles[-1].append(line)
 
+            elif sp[0] == '!': #energy in this step
+                energy = True
+                splitfiles[-1].append(line)
+            else:
+                if len(splitfiles) > 0:
+                    splitfiles[-1].append(line)
+#                    print 'normal line '
+#                    print line
+
         if relax_load_freq < 1: #keep only the last file
-            splitfiles = [splitfiles[-1]]
+            if scf == True:
+                splitfiles = [splitfiles[-1]]
+            elif len(splitfiles) > 1:
+                splitfiles = [splitfiles[-2]]
+            else:
+                splitfiles = [splitfiles[-1]]
+                
         elif relax_load_freq > 1 and len(splitfiles) > 5: #keep a fraction of the files from long relaxations
             s = []
             for i in range(len(splitfiles)-1):
@@ -199,7 +247,10 @@ def load_output_both(thefile, relax_load_freq=1):
                 if i%relax_load_freq == 0:
                     s.append(splitfiles[i])
 
-            s.append(splitfiles[-1]) #keep last file
+            if scf:
+                s.append(splitfiles[-1]) #keep last file
+            else:
+                s.append(splitfiles[-2]) #keep second to last file if there was an error in last file
 
             splitfiles = s
 
@@ -230,7 +281,8 @@ def load_output_both(thefile, relax_load_freq=1):
         forces_big.append(forces)
         stress_big.append(stress)
         energy_big.append(energy)
-        
+
+#    print 'return A_big'
     return A_big,types_big,pos_big,forces_big,stress_big,energy_big
 
 
@@ -316,6 +368,7 @@ def load_output(thefile):
                         if crys == False:
 
                             pos[atoms_counter_pos,:] = np.dot(t, np.linalg.inv(A/celldm))
+#                            print 'load pos', pos[atoms_counter_pos,:]
                         else:
                             pos[atoms_counter_pos,:] = copy.copy(t)
                         atoms_counter_pos += 1
@@ -336,6 +389,7 @@ def load_output(thefile):
                         if crys == False:
 
                             pos[atoms_counter,:] = np.dot(t, np.linalg.inv(A/celldm))
+#                            print 'load pos1', pos[atoms_counter,:]
                         else:
                             pos[atoms_counter,:] = t
                         types.append(sp[1].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6').strip('7'))
@@ -356,19 +410,32 @@ def load_output(thefile):
         #                celldm = float(sp[1])
                     if len(sp) > 4 and sp[0] == 'lattice' and sp[2] == '(alat)':
                         celldm = float(sp[4])
+                    if sp[0] == 'celldm(1)=': # more digits
+                        celldm = float(sp[1])
+
+                        
+#                        print 'celldm', celldm
     #                if sp[0] == 'number' and sp[3] == 'types':
     #                    ntype = int(sp[5])
                     if sp[0] == 'site' and sp[4] == '(cryst.':
                         atoms_counter = 0
                         crys = True
+#                        print 'crys true'                        
                     if sp[0] == 'site' and sp[4] == '(alat':
                         atoms_counter = 0
                         crys = False
-
-                    if forces_counter > -1 and forces_counter < nat and len(sp) == 9:
-
-                        forces[forces_counter, 0:3] = map(float,sp[6:9])
-                        forces_counter += 1
+#                        print 'crys false'
+                    if forces_counter > -1 and forces_counter < nat:
+                        if len(sp) != 0:
+                            if  len(sp) == 9 and  sp[4] == 'force':
+                                forces[forces_counter, 0:3] = map(float,sp[6:9])
+                                forces_counter += 1
+#                            else:
+#                                print 'failed to load forces'
+#                                energy = -99999999
+#                                done = False
+#                                break
+                                
                     if sp[0] == 'number' and sp[2] == 'atoms/cell':
                         nat = int(sp[4])
                         forces = np.zeros((nat,3),dtype=float)
@@ -403,7 +470,10 @@ def load_output(thefile):
             if done == False:
                 energy = -99999999
 
-
+            if forces_counter != nat:
+                print 'error loading forces', forces_counter,nat
+                print 'trying to continue with zero forces'
+                forces = np.zeros((nat,3),dtype=float)
 
         except:
             print 'failed to load output file!!'
@@ -526,8 +596,12 @@ def load_atomic_pos( fil, return_kpoints=False):
         return fil.return_struct()
 
     
-    if type(fil) is not list:
+    if type(fil) is file:
         alllines = fil.readlines()
+    elif type(fil) is str:
+        t = open(fil, 'r')
+        alllines = t.readlines()
+        t.close()
     else:
         alllines = fil
         
@@ -556,7 +630,7 @@ def load_atomic_pos( fil, return_kpoints=False):
             aflag = 0 
             kflag = 1
         elif sp[0] == 'CELL_PARAMETERS':
-            if len(sp) == 2 and sp[1] == 'angstrom':
+            if len(sp) == 2 and (sp[1] == 'angstrom' or sp[1] == '(angstrom)'):
                 units = 1/0.529177249
             else:#bohr
                 units = 1.0
@@ -565,6 +639,7 @@ def load_atomic_pos( fil, return_kpoints=False):
             cflag = 0
         elif sflag > 0:
             atoms.append(sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6'))
+#            print sp
             masses.append(float(sp[1]))
 #            atoms.append(sp[0])
         elif cflag > 0:
@@ -602,21 +677,43 @@ def isfloat(value):
   except ValueError:
     return False
 
-def generate_random_inputs(inputfile,number,dist_cart,Acart=0.0, substitute_fraction=0.0, rand_list=[], exact_fraction=False):
+def generate_random_inputs(inputfile,number,dist_cart,Acart=0.0, substitute_fraction=0.0, rand_list=[], exact_fraction=False, Ain=None, coordsin=None,coords_typein=None, atom_num=None):
 
-    fil = open(inputfile, 'r')
-    fullfil = fil.readlines()
-    fil.close()
-    A, atoms, coords,coords_type, masses = load_atomic_pos(fullfil)
-
-    if fullfil[7].lower().split()[0] == 'direct':
-        vasp = True
-        print 'vasp ', vasp
-    else:
+    #if we are give A,C,T
+    if Ain is not None and coordsin is not None and coords_typein is not None:
+        print 'input A C T'
+        A=Ain
+        coords=coordsin
+        coords_type=coords_typein
+        atoms=set(coords_type)
         vasp = False
+    else: #else read from file
+        if type(inputfile) is str:
+            fil = open(inputfile, 'r')
+            fullfil = fil.readlines()
+            fil.close()
+        elif type(inputfile) is file:
+            fullfil = inputfile.readlines()
+        else:
+            fullfil = inputfile
+        
+        A, atoms, coords,coords_type, masses = load_atomic_pos(fullfil)
+
+        if fullfil[7].lower().split()[0] == 'direct':
+            vasp = True
+            print 'vasp ', vasp
+        else:
+            vasp = False
 
 
+
+        
     nat = len(coords_type)
+    if atom_num is None:
+        atom_num = range(nat)
+    else:
+        print 'atom_num qeman', atom_num
+        
     print 'nat ' + str(nat)
     coords_cart = np.dot(coords,A)
 #    print 'coords_cart'
@@ -664,7 +761,7 @@ def generate_random_inputs(inputfile,number,dist_cart,Acart=0.0, substitute_frac
         if ndope == 0 or ndope == nsites:
             exact_fraction = False #we don't need to go through the hoopla, existing code will work
                     
-    for c in range(number):
+    for c in range(abs(max(number, 1))):
 
         if exact_fraction:
 
@@ -687,8 +784,11 @@ def generate_random_inputs(inputfile,number,dist_cart,Acart=0.0, substitute_frac
         
 
         rand = (np.random.rand(nat,3) - 0.5)*2.0*dist_cart
-        coordsnew = np.dot((rand+coords_cart), Ainv)
-        coordsnew_reverse = np.dot((-rand+coords_cart), Ainv)
+        coordsnew = copy.copy(np.dot(coords_cart, Ainv))
+        coordsnew_reverse = copy.copy(np.dot(coords_cart, Ainv))
+        for i in atom_num:
+            coordsnew[i,:] = np.dot((rand[i,:]+coords_cart[i,:]), Ainv)
+            coordsnew_reverse[i,:] = np.dot((-rand[i,:]+coords_cart[i,:]), Ainv)
 
 #        coordsnew[:,0:2] = coords[:,0:2]
 #        rand = (np.random.rand(nat,3) - 0.5)*2.0*dist_cart
@@ -774,64 +874,340 @@ def generate_random_inputs(inputfile,number,dist_cart,Acart=0.0, substitute_frac
 #                if theatom == 'Vac':
 #                    vac += 1
 
+
+        if number > 0: #otherwise don't make and output file, just return A,C,T
+
+            if c < 9:
+                name=inputfile+'.0'+str(c+1)
+            else:
+                name=inputfile+'.'+str(c+1)
+            if vasp:
+                qe_manipulate_vasp.cell_writer(coordsnew, Anew, atoms, atoms_big, [1,1,1], name)
+            else:
+
+                out = open(name, 'w')
+        #            out_rev = open(inputfile+'.rev.'+str(c+1), 'w')
+                atom_counter = 0
+                counter = 0
+                for line in fullfil:
+                    sp = line.replace('=',' = ').split()
+                    if len(sp) == 0:
+                        continue
+                    if sp[0] == 'prefix':
+                        prefix=sp[2].strip(',').strip("'")
+    #                    print sp[2]
+    #                    print 'prefix', prefix
+                        out.write("prefix = '"+prefix+str(c+1)+"'\n")
+        #                out_rev.write("prefix = '"+prefix+str(c+1)+"'\n")
+                    elif sp[0] == 'nat':
+                        nat_new = nat - vac
+                        out.write('  nat = '+str(nat_new)+'\n')
+                    elif sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 3:
+                        atomstring = sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6')
+                        out.write(atomstring + ' ' + sp[1] + ' ' + sp[2] + '\n')
+                    elif sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 4:
+        #                atomstring = sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6')
+        #                if substitute_fraction > 1e-7 and atomstring in rand_list:
+        #                    if atomstring == rand_list[0]:
+        #                        otheratom = rand_list[1]
+        #                    else:
+        #                        otheratom = rand_list[0]
+        #                        
+        #                    p = np.random.rand(1)
+        #                    if p < substitute_fraction:
+        #                        theatom = otheratom
+        #                    else:
+        #                        theatom = atomstring
+        #                else:
+        #                    theatom = atomstring
+        #                print atom_counter
+                        theatom = atoms_big[atom_counter]
+                        if theatom != 'Vac':
+                            out.write(theatom + '  ' + str(coordsnew[atom_counter,0]) + ' '  + str(coordsnew[atom_counter,1]) + ' '  + str(coordsnew[atom_counter,2]) + '\n')
+        #                out_rev.write(theatom + '  ' + str(coordsnew_reverse[atom_counter,0]) + ' '  + str(coordsnew_reverse[atom_counter,1]) + ' '  + str(coordsnew_reverse[atom_counter,2]) + '\n')
+                        atom_counter += 1
+                    elif len(sp) == 3 and isfloat(sp[0]) and isfloat(sp[1]) and isfloat(sp[2]):
+                        out.write(str(Anew[counter,0]) + ' ' + str(Anew[counter,1]) + ' ' + str(Anew[counter,2])+'\n')
+        #                out_rev.write(str(Anew_reverse[counter,0]) + ' ' + str(Anew_reverse[counter,1]) + ' ' + str(Anew_reverse[counter,2])+'\n')
+                        counter += 1
+                    else:
+                        out.write(line)
+        #                out_rev.write(line)
+
+                out.close()
+    #        out_rev.close()
+
+
+    return coordsnew, Anew,atoms_big
+
+
+def generate_systematic_inputs(inputfile,number,dist_cart,Acart=0.0, substitute_fraction=0.0, rand_list=[], exact_fraction=False, Ain=None, coordsin=None,coords_typein=None, atom_num=None):
+
+    #if we are give A,C,T
+    if Ain is not None and coordsin is not None and coords_typein is not None:
+        print 'input A C T'
+        A=Ain
+        coords=coordsin
+        coords_type=coords_typein
+        atoms=set(coords_type)
+        vasp = False
+    else: #else read from file
+        if type(inputfile) is str:
+            fil = open(inputfile, 'r')
+            fullfil = fil.readlines()
+            fil.close()
+        elif type(inputfile) is file:
+            fullfil = inputfile.readlines()
+        else:
+            fullfil = inputfile
         
-        if c < 9:
-            name=inputfile+'.0'+str(c+1)
+        A, atoms, coords,coords_type, masses = load_atomic_pos(fullfil)
+
+        if fullfil[7].lower().split()[0] == 'direct':
+            vasp = True
+            print 'vasp ', vasp
         else:
-            name=inputfile+'.'+str(c+1)
-        if vasp:
-            qe_manipulate_vasp.cell_writer(coordsnew, Anew, atoms, atoms_big, [1,1,1], name)
-        else:
+            vasp = False
+
+
+
+        
+    nat = len(coords_type)
+    if atom_num is None:
+        atom_num = range(nat)
+    else:
+        print 'atom_num qeman', atom_num
+        
+    print 'nat ' + str(nat)
+    coords_cart = np.dot(coords,A)
+#    print 'coords_cart'
+#    print coords_cart
+    Ainv = np.linalg.inv(A)
+
+    for r in rand_list:
+        if r not in atoms:
+            atoms.append(r)
             
-            out = open(name, 'w')
-    #            out_rev = open(inputfile+'.rev.'+str(c+1), 'w')
-            atom_counter = 0
-            counter = 0
-            for line in fullfil:
-                sp = line.replace('=',' = ').split()
-                if len(sp) == 0:
-                    continue
-                if sp[0] == 'prefix':
-                    prefix=sp[2].strip("'")
-                    out.write("prefix = '"+prefix+str(c+1)+"'\n")
-    #                out_rev.write("prefix = '"+prefix+str(c+1)+"'\n")
-                elif sp[0] == 'nat':
-                    nat_new = nat - vac
-                    out.write('  nat = '+str(nat_new)+'\n')
-                elif sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 3:
-                    atomstring = sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6')
-                    out.write(atomstring + ' ' + sp[1] + ' ' + sp[2] + '\n')
-                elif sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 4:
+    if 'Vac' in rand_list:
+        print 'vacancy version version'
+
+    if substitute_fraction > 1e-7:
+        print 'activating random fraction ' + str(substitute_fraction)
+        print 'sub list ' + str(rand_list)
+        if rand_list[1] == 'Vac':
+            print 'subbing in vacancies!!!!!!!!'
+            vac=True
+        else:
+            val=False
+        if exact_fraction:
+            print 'Exact (rounded) number of dopants'
+
+    if exact_fraction: #we have to figure out how many dopants exactly
+        nsites = 0
+        sites = []
+        nat = 0
+        for atomstring in coords_type:
+#        for line in fullfil:
+#            sp = line.replace('=',' = ').split()
+#            if len(sp) == 0:
+#                continue
+#            if sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 4:
+#                atomstring = sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6')
+
+            nat += 1
+
+            if atomstring in rand_list:
+                nsites += 1
+                sites.append(nat-1)
+
+        ndope = int(round(substitute_fraction * nsites))
+        print 'Number of normal atoms: ' , nsites-ndope, 'Number of dopants: ', ndope, ', total sites: ', nsites, ' sites.'
+        if ndope == 0 or ndope == nsites:
+            exact_fraction = False #we don't need to go through the hoopla, existing code will work
+                    
+    for c in range(abs(max(number, 1))):
+        for direction in range(3):
+            if exact_fraction:
+
+    #            todope = set() 
+                #           for x in range(100000): #generate random sites
+                #                r = randint(0,nat-1)
+                #                if r in sites: 
+                #                    todope.add(r)
+                #                    if len(todope) == ndope:
+                #                        break
+
+                #do the same thing with built in shuffle function
+                todope =copy.copy(sites)
+                shuffle(todope)
+                todope = todope[0:ndope]
+                if len(todope) != ndope:
+                    print 'SOMETHING HAS GONE WRONG FIGURING OUT THE DOPING!!!!!!!!!!!!!!!'
+                    print 'SOMETHING HAS GONE WRONG FIGURING OUT THE DOPING!!!!!!!!!!!!!!!'
+                    print 'SOMETHING HAS GONE WRONG FIGURING OUT THE DOPING!!!!!!!!!!!!!!!'
+
+
+    #        rand = (np.random.rand(nat,3) - 0.5)*2.0*dist_cart
+            coordsnew = copy.copy(np.dot(coords_cart, Ainv))
+            coordsnew_reverse = copy.copy(np.dot(coords_cart, Ainv))
+
+            #        for i in atom_num:
+            coords_cart_temp = copy.copy(coords_cart)
+            coords_cart_temp[c, direction] += dist_cart
+            coordsnew = np.dot((coords_cart_temp), Ainv)
+            coordsnew_reverse = np.dot((coords_cart_temp), Ainv)
+
+    #        coordsnew[:,0:2] = coords[:,0:2]
+    #        rand = (np.random.rand(nat,3) - 0.5)*2.0*dist_cart
+    #        coordsnew = np.dot((rand+coords_cart), Ainv)
+    #        coordsnew_reverse = np.dot((-rand+coords_cart), Ainv)
+
+
+
+#            rand = (np.random.rand(3,3) - 0.5)*2.0*Acart
+#            rand = (rand + rand.T)/2.0
+#            Anew = np.dot(A, np.eye(3)+rand)
+#            Anew_reverse = np.dot(A, np.eye(3)-rand)
+
+            Anew = A
+            Anew_reverse = A
+
+
+    ###        output_qe_style(inputfile+'.'+str(c)+'.fake1.out',coordsnew,Anew,np.zeros(coordsnew.shape,dtype=float),0.0,np.zeros((3,3),dtype=float))
+
+            atoms_big = []
+            vac = 0
+
+    #        if substitute_fraction > 1e-7:
+            site=-1
+
+
+            for atomstring in coords_type:
+                site += 1
+
+                if atomstring in rand_list:
+                    if atomstring == rand_list[0]:
+                        otheratom = rand_list[1]
+                    else:
+                        otheratom = rand_list[0]
+
+                    if exact_fraction:
+                        if site in todope:
+                            theatom = rand_list[1]
+                        else:
+                            theatom = rand_list[0]
+
+                    else:
+                        p = np.random.rand(1)
+                        if p < substitute_fraction:
+                            theatom = otheratom
+                        else:
+                            theatom = atomstring
+                else:
+                    theatom = atomstring
+
+                atoms_big.append(theatom)
+                if theatom == 'Vac':
+                    vac += 1
+
+
+    #        for line in fullfil:
+    #            sp = line.replace('=',' = ').split()
+    #            if len(sp) == 0:
+    #                continue
+    #            elif sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 4:
     #                atomstring = sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6')
-    #                if substitute_fraction > 1e-7 and atomstring in rand_list:
+    #                site += 1
+    #                if atomstring in rand_list:
     #                    if atomstring == rand_list[0]:
     #                        otheratom = rand_list[1]
     #                    else:
     #                        otheratom = rand_list[0]
-    #                        
-    #                    p = np.random.rand(1)
-    #                    if p < substitute_fraction:
-    #                        theatom = otheratom
+    #
+    #                    if exact_fraction:
+    #                        if site in todope:
+    #                            theatom = rand_list[1]
+    #                        else:
+    #                            theatom = rand_list[0]
+    #                            
     #                    else:
-    #                        theatom = atomstring
+    #                        p = np.random.rand(1)
+    #                        if p < substitute_fraction:
+    #                            theatom = otheratom
+    #                        else:
+    #                            theatom = atomstring
     #                else:
     #                    theatom = atomstring
-    #                print atom_counter
-                    theatom = atoms_big[atom_counter]
-                    if theatom != 'Vac':
-                        out.write(theatom + '  ' + str(coordsnew[atom_counter,0]) + ' '  + str(coordsnew[atom_counter,1]) + ' '  + str(coordsnew[atom_counter,2]) + '\n')
-    #                out_rev.write(theatom + '  ' + str(coordsnew_reverse[atom_counter,0]) + ' '  + str(coordsnew_reverse[atom_counter,1]) + ' '  + str(coordsnew_reverse[atom_counter,2]) + '\n')
-                    atom_counter += 1
-                elif len(sp) == 3 and isfloat(sp[0]) and isfloat(sp[1]) and isfloat(sp[2]):
-                    out.write(str(Anew[counter,0]) + ' ' + str(Anew[counter,1]) + ' ' + str(Anew[counter,2])+'\n')
-    #                out_rev.write(str(Anew_reverse[counter,0]) + ' ' + str(Anew_reverse[counter,1]) + ' ' + str(Anew_reverse[counter,2])+'\n')
-                    counter += 1
-                else:
-                    out.write(line)
-    #                out_rev.write(line)
+    #
+    #                atoms_big.append(theatom)
+    #                if theatom == 'Vac':
+    #                    vac += 1
 
-            out.close()
-#        out_rev.close()
+
+            if number > 0: #otherwise don't make and output file, just return A,C,T
+
+                if c < 9:
+                    name=inputfile+'.0'+str(c+1)+"."+str(direction)
+                else:
+                    name=inputfile+'.'+str(c+1)+"."+str(direction)
+                if vasp:
+                    qe_manipulate_vasp.cell_writer(coordsnew, Anew, atoms, atoms_big, [1,1,1], name)
+                else:
+
+                    out = open(name, 'w')
+                    #            out_rev = open(inputfile+'.rev.'+str(c+1), 'w')
+                    atom_counter = 0
+                    counter = 0
+                    for line in fullfil:
+                        sp = line.replace('=',' = ').split()
+                        if len(sp) == 0:
+                            continue
+                        if sp[0] == 'prefix':
+                            prefix=sp[2].strip(',').strip("'")
+                            #                    print sp[2]
+                            #                    print 'prefix', prefix
+                            out.write("prefix = '"+prefix+str(c+1)+"'\n")
+                            #                out_rev.write("prefix = '"+prefix+str(c+1)+"'\n")
+                        elif sp[0] == 'nat':
+                            nat_new = nat - vac
+                            out.write('  nat = '+str(nat_new)+'\n')
+                        elif sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 3:
+                            atomstring = sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6')
+                            out.write(atomstring + ' ' + sp[1] + ' ' + sp[2] + '\n')
+                        elif sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 4:
+                            #                atomstring = sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6')
+                            #                if substitute_fraction > 1e-7 and atomstring in rand_list:
+                            #                    if atomstring == rand_list[0]:
+                            #                        otheratom = rand_list[1]
+                            #                    else:
+                            #                        otheratom = rand_list[0]
+                            #                        
+                            #                    p = np.random.rand(1)
+                            #                    if p < substitute_fraction:
+                            #                        theatom = otheratom
+                            #                    else:
+                            #                        theatom = atomstring
+                            #                else:
+                            #                    theatom = atomstring
+                            #                print atom_counter
+                            theatom = atoms_big[atom_counter]
+                            if theatom != 'Vac':
+                                out.write(theatom + '  ' + str(coordsnew[atom_counter,0]) + ' '  + str(coordsnew[atom_counter,1]) + ' '  + str(coordsnew[atom_counter,2]) + '\n')
+                                #                out_rev.write(theatom + '  ' + str(coordsnew_reverse[atom_counter,0]) + ' '  + str(coordsnew_reverse[atom_counter,1]) + ' '  + str(coordsnew_reverse[atom_counter,2]) + '\n')
+                            atom_counter += 1
+                        elif len(sp) == 3 and isfloat(sp[0]) and isfloat(sp[1]) and isfloat(sp[2]):
+                            out.write(str(Anew[counter,0]) + ' ' + str(Anew[counter,1]) + ' ' + str(Anew[counter,2])+'\n')
+                            #                out_rev.write(str(Anew_reverse[counter,0]) + ' ' + str(Anew_reverse[counter,1]) + ' ' + str(Anew_reverse[counter,2])+'\n')
+                            counter += 1
+                        else:
+                            out.write(line)
+                            #                out_rev.write(line)
+
+                    out.close()
+                    #        out_rev.close()
+
+
+    return coordsnew, Anew,atoms_big
 
 def generate_random_inputs_z(inputfile,number,dist_cart,Acart=0.0):
 
@@ -867,7 +1243,8 @@ def generate_random_inputs_z(inputfile,number,dist_cart,Acart=0.0):
             if len(sp) == 0:
                 continue
             if sp[0] == 'prefix':
-                prefix=sp[2].strip("'")
+                prefix=sp[2].strip(',').strip("'")
+#                prefix=sp[2].strip("'")
                 out.write("prefix = '"+prefix+str(c+1)+"'\n")
             elif sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 4:
                 out.write(sp[0] + '  ' + str(coordsnew[atom_counter,0]) + ' '  + str(coordsnew[atom_counter,1]) + ' '  + str(coordsnew[atom_counter,2]) + '\n')
@@ -914,7 +1291,8 @@ def cull_supercell(inputfile,outfile,keep , dontkeep=False):
         if len(sp) == 0:
             continue
         if sp[0] == 'prefix':
-            prefix=sp[2].strip("'")
+            prefix=sp[2].strip(',').strip("'")
+#            prefix=sp[2].strip("'")
             out.write("prefix = '"+prefix+c+"'\n")
 
         elif sp[0] == 'nat':
@@ -950,12 +1328,14 @@ def cull_supercell(inputfile,outfile,keep , dontkeep=False):
         
         
         
-def generate_supercell(fullfil,supercell, outname=None):
+def generate_supercell(fullfil,supercell, outname=None, A=None, coords=None, coords_type=None):
 
 #    fil = open(inputfile, 'r')
 #    fullfil = fil.readlines()
 #    fil.close()
-    A, atoms, coords,coords_type, masses, kpoints  = load_atomic_pos(fullfil, return_kpoints=True)
+
+    if A is None:
+        A, atoms, coords,coords_type, masses, kpoints  = load_atomic_pos(fullfil, return_kpoints=True)
     
     nat = len(coords_type)
     print 'nat ' + str(nat)
@@ -1022,12 +1402,19 @@ def cell_writer(fullfil, coordsnew, Anew, atoms, coords_type, kpoints, name):
     counter = 0
     added = False
     kpt = False
+
+    angstrom = False
+    
     for line in fullfil:
+        print line
         sp = line.replace('=',' = ').split()
+#        print sp
         if len(sp) == 0:
             continue
         if sp[0] == 'prefix':
-            prefix=sp[2].strip("'")
+            prefix=sp[2].strip(',').strip("'")
+            print sp[2], 'prefix', prefix
+            #            prefix=sp[2].strip("'")
             out.write("prefix = '"+prefix+"'\n")
         elif kpt == True:
             kpt = False
@@ -1042,6 +1429,14 @@ def cell_writer(fullfil, coordsnew, Anew, atoms, coords_type, kpoints, name):
                 out.write(str(kpoints[0]) + ' ' + str(kpoints[1]) + ' ' + str(kpoints[2]) + ' 0 0 0\n')
             
 
+        elif sp[0] == 'CELL_PARAMETERS':
+            if len(sp) > 1:
+                if sp[1] == 'angstrom' or sp[1] == '(angstrom)':
+                    angstrom = True
+                    Anew = Anew #* 0.529177
+#            out.write(line)
+            out.write(sp[0]+'\n')
+            
         elif sp[0].strip('1').strip('2').strip('3').strip('4').strip('5').strip('6') in atoms and len(sp) == 4 and added == False:
             added = True
             for n in range(nat):
@@ -1431,7 +1826,7 @@ def generate_all_supercell_nonorth(inputfile, kgrid):
                            pbc=True)
 
 
-    dataset = spglib.get_symmetry_dataset(mystruct, symprec=1e-5)
+    dataset = spglib.get_symmetry_dataset(mystruct, symprec=0.2)
     print 'spacegroup'
     print dataset['number']
     print dataset['international']

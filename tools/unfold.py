@@ -1,7 +1,7 @@
 #!/usr/bin/evn python
 import time
 import sys
-from springconstants import springconstants
+from spring_cluster import spring_cluster
 from qe_manipulate import cell_writer
 
 #this will take a qe output file and place it in a larger diagonal cell of a highsymmetry structure.
@@ -21,7 +21,7 @@ print
 print 'Input Supercell ' + str(supercell)
 
 
-mysc = springconstants(high_sym, supercell)
+mysc = spring_cluster(high_sym, supercell)
 
 A,types,pos,kpoints_super = mysc.unfold_input(fil)
 
@@ -32,5 +32,8 @@ print '---'
 print
 
 hs = open(high_sym, 'r')
-cell_writer(hs, pos, A, mysc.myphi.atoms, types, kpoints_super, output)
+hsr = hs.readlines()
+hs.close()
+
+cell_writer(hsr, pos, A, mysc.myphi.atoms, types, kpoints_super, output)
 hs.close()

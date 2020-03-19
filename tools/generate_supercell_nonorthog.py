@@ -7,7 +7,7 @@ import numpy as np
 #from gauss import theirgauss
 from qe_manipulate import *
 import math
-from phi_prim_usec import phi
+from phi_class import phi
 import time
 
 #this is a tool to generate nonorthogonal supercells. To generate a sqrt(2) x sqrt(2) x 1 supercell

@@ -1678,7 +1678,7 @@ static const char __pyx_k_gaussian_single[] = "gaussian_single";
 static const char __pyx_k_dist_cut_twobody[] = "dist_cut_twobody";
 static const char __pyx_k_find_nonzero_highdim[] = "find_nonzero_highdim";
 static const char __pyx_k_ndarray_is_not_C_contiguous[] = "ndarray is not C contiguous";
-static const char __pyx_k_data_kfg_codes_sc_testing_src_f[] = "/data/kfg/codes/sc_testing/src/find_nonzero_highdim.pyx";
+static const char __pyx_k_users_kfg_codes_spring_cluster[] = "/users/kfg/codes/spring_cluster/src/find_nonzero_highdim.pyx";
 static const char __pyx_k_numpy_core_multiarray_failed_to[] = "numpy.core.multiarray failed to import";
 static const char __pyx_k_unknown_dtype_code_in_numpy_pxd[] = "unknown dtype code in numpy.pxd (%d)";
 static const char __pyx_k_Format_string_allocated_too_shor[] = "Format string allocated too short, see comment in numpy.pxd";
@@ -1716,7 +1716,6 @@ static PyObject *__pyx_n_s_complex;
 static PyObject *__pyx_n_s_copy;
 static PyObject *__pyx_n_s_current;
 static PyObject *__pyx_n_s_d;
-static PyObject *__pyx_kp_s_data_kfg_codes_sc_testing_src_f;
 static PyObject *__pyx_n_s_dim;
 static PyObject *__pyx_n_s_dim_allowed;
 static PyObject *__pyx_n_s_dist_array;
@@ -1758,6 +1757,7 @@ static PyObject *__pyx_n_s_theirgauss;
 static PyObject *__pyx_n_s_time;
 static PyObject *__pyx_n_s_unique;
 static PyObject *__pyx_kp_u_unknown_dtype_code_in_numpy_pxd;
+static PyObject *__pyx_kp_s_users_kfg_codes_spring_cluster;
 static PyObject *__pyx_n_s_verbosity;
 static PyObject *__pyx_n_s_zeros;
 static PyObject *__pyx_pf_20find_nonzero_highdim_find_nonzero_highdim(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_phiobj, int __pyx_v_dim, float __pyx_v_dist_cutoff, int __pyx_v_bodycount, float __pyx_v_dist_cut_twobody); /* proto */
@@ -8220,7 +8220,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_copy, __pyx_k_copy, sizeof(__pyx_k_copy), 0, 0, 1, 1},
   {&__pyx_n_s_current, __pyx_k_current, sizeof(__pyx_k_current), 0, 0, 1, 1},
   {&__pyx_n_s_d, __pyx_k_d, sizeof(__pyx_k_d), 0, 0, 1, 1},
-  {&__pyx_kp_s_data_kfg_codes_sc_testing_src_f, __pyx_k_data_kfg_codes_sc_testing_src_f, sizeof(__pyx_k_data_kfg_codes_sc_testing_src_f), 0, 0, 1, 0},
   {&__pyx_n_s_dim, __pyx_k_dim, sizeof(__pyx_k_dim), 0, 0, 1, 1},
   {&__pyx_n_s_dim_allowed, __pyx_k_dim_allowed, sizeof(__pyx_k_dim_allowed), 0, 0, 1, 1},
   {&__pyx_n_s_dist_array, __pyx_k_dist_array, sizeof(__pyx_k_dist_array), 0, 0, 1, 1},
@@ -8262,6 +8261,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_time, __pyx_k_time, sizeof(__pyx_k_time), 0, 0, 1, 1},
   {&__pyx_n_s_unique, __pyx_k_unique, sizeof(__pyx_k_unique), 0, 0, 1, 1},
   {&__pyx_kp_u_unknown_dtype_code_in_numpy_pxd, __pyx_k_unknown_dtype_code_in_numpy_pxd, sizeof(__pyx_k_unknown_dtype_code_in_numpy_pxd), 0, 1, 0, 0},
+  {&__pyx_kp_s_users_kfg_codes_spring_cluster, __pyx_k_users_kfg_codes_spring_cluster, sizeof(__pyx_k_users_kfg_codes_spring_cluster), 0, 0, 1, 0},
   {&__pyx_n_s_verbosity, __pyx_k_verbosity, sizeof(__pyx_k_verbosity), 0, 0, 1, 1},
   {&__pyx_n_s_zeros, __pyx_k_zeros, sizeof(__pyx_k_zeros), 0, 0, 1, 1},
   {0, 0, 0, 0, 0, 0, 0}
@@ -8423,7 +8423,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__14 = PyTuple_Pack(26, __pyx_n_s_phiobj, __pyx_n_s_dim, __pyx_n_s_dist_cutoff, __pyx_n_s_bodycount, __pyx_n_s_dist_cut_twobody, __pyx_n_s_dist_array, __pyx_n_s_atomlist, __pyx_n_s_atomlist1, __pyx_n_s_compactlist, __pyx_n_s_atoms, __pyx_n_s_nat, __pyx_n_s_nonzero_atoms, __pyx_n_s_a, __pyx_n_s_i, __pyx_n_s_at_prim, __pyx_n_s_d, __pyx_n_s_natsuper, __pyx_n_s_current, __pyx_n_s_insidecutoff, __pyx_n_s_at1, __pyx_n_s_at2, __pyx_n_s_mem, __pyx_n_s_body, __pyx_n_s_atlist, __pyx_n_s_dim_allowed, __pyx_n_s_at_super); if (unlikely(!__pyx_tuple__14)) __PYX_ERR(0, 59, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__14);
   __Pyx_GIVEREF(__pyx_tuple__14);
-  __pyx_codeobj__15 = (PyObject*)__Pyx_PyCode_New(5, 0, 26, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__14, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_data_kfg_codes_sc_testing_src_f, __pyx_n_s_find_nonzero_highdim, 59, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__15)) __PYX_ERR(0, 59, __pyx_L1_error)
+  __pyx_codeobj__15 = (PyObject*)__Pyx_PyCode_New(5, 0, 26, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__14, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_users_kfg_codes_spring_cluster, __pyx_n_s_find_nonzero_highdim, 59, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__15)) __PYX_ERR(0, 59, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;

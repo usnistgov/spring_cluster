@@ -36,14 +36,14 @@ dist_array_R,nsym_arr,sym_arr, natsuper, natsuper1)
     do a = 1,natsuper1
        do b = 1,natsuper
           dmin = 10000000000.0
-          do x =-1,2
+          do x =-2,3
              xyz(1) = x
              xyz_int(1) = x
-             do y =-1,2
+             do y =-2,3
                 xyz(2) = y
                 xyz_int(2) = y
 
-                do z =-1,2
+                do z =-2,3
                    xyz(3) = z
                    xyz_int(3) = z
 

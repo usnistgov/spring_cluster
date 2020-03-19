@@ -1,4 +1,4 @@
-  subroutine dipole_dipole(u, strain, v, vf, h, volsuper, ncells, natsuper,nat, energy, forces, stress)
+  subroutine dipole_dipole(u, strain, v, vf, h, volsuper, ncells, nat,natsuper, energy, forces, stress)
 
 !main energy/force/stress calculator of electrostatic terms
 !
@@ -15,10 +15,10 @@
     double precision :: forces(natsuper,3)
 !    double precision :: f1(3)
     double precision :: stress(3,3)
-    double precision :: energy, energy1
+    double precision :: energy, energy1  !energy_asr
 
     double precision :: v(3,3,3,3)
-    double precision :: vf(nat,3,3,3)
+    double precision :: vf(natsuper,3,3,3)
     double precision :: h(natsuper*3, natsuper*3)
 
     double precision :: u(natsuper, 3)
@@ -33,6 +33,7 @@
     forces(:,:) = 0.0
     stress(:,:) = 0.0
     energy = 0.0
+!    energy_asr = 0.0
 
 !elastic
     do i = 1,3
@@ -49,6 +50,9 @@
     end do
 
     energy = energy * ncells * 0.5 * 0.5
+
+!    write(*,*) 'energy_es fortran', energy, ncells
+
     stress = stress / 2.0 / volsuper * ncells
 !    write(*,*) 'energy_f1 ', energy
 
@@ -57,10 +61,10 @@
        do j = 1,3
           do ii = 1,3
              do a =  1,natsuper
-                aa = modulo(a-1,nat)+1
-                forces(a,i) =  forces(a,i) + vf(aa,i,j,ii) * strain(j,ii)
-                stress(j,ii) = stress(j,ii) +  vf(aa,i,j,ii) * u(a,i) / volsuper
-                energy = energy  -  vf(aa,i,j,ii) * u(a,i)* strain(j,ii) 
+!                aa = modulo(a-1,nat)+1
+                forces(a,i) =  forces(a,i) + vf(a,i,j,ii) * strain(j,ii)
+                stress(j,ii) = stress(j,ii) +  vf(a,i,j,ii) * u(a,i) / volsuper
+                energy = energy  -  vf(a,i,j,ii) * u(a,i)* strain(j,ii) 
              end do
           end do
        end do
@@ -72,6 +76,7 @@
     !atom atom interaction 
 !$OMP PARALLEL private(a,i,j,b,energy1 )
 !$OMP DO
+!    energy_asr = 0.0
     do a =  1,natsuper
        energy1=0.0
 !       f1 = 0.0
@@ -79,7 +84,9 @@
           do j = 1,3
              do b =  1,natsuper
                 energy1 = energy1 + 0.5*u(a,i)*h((a-1)*3+i,(b-1)*3+j)*u(b,j)
-!                f1(i) = f1(i) - h((a-1)*3+i,(b-1)*3+j)*u(b,j)
+!                energy_asr = energy_asr + 0.5*(u(a,i)+0.1*i)*h((a-1)*3+i,(b-1)*3+j)*(u(b,j)+0.1*j)
+!                write(*,*), 'FORT atom atom',i,j,a,b,u(a,i),h((a-1)*3+i,(b-1)*3+j),u(b,j),0.5*u(a,i)*h((a-1)*3+i,(b-1)*3+j)*u(b,j)
+                !                f1(i) = f1(i) - h((a-1)*3+i,(b-1)*3+j)*u(b,j)
                 forces(a,i) = forces(a,i) - h((a-1)*3+i,(b-1)*3+j)*u(b,j)
              end do
           end do
@@ -94,6 +101,6 @@
 !$OMP END PARALLEL
 
 
-!    write(*,*) 'energy_f1 ', energy
+!    write(*,*) 'energy_asr dip  ', energy, energy_asr
 
   end subroutine dipole_dipole

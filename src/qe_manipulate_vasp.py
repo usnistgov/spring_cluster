@@ -149,7 +149,8 @@ def load_output_both(inputlines,relax_load_freq):
         
     if nfile > 1:
         print 'number of seperate calcs in this file ' + str(nfile) + ' and we use ' + str(len(splitfiles))
-
+#        print 'vasp'
+#    print 'loaded output both'
     return splitfiles
 
 def load_output(inputlines):
@@ -390,9 +391,9 @@ def cell_writer(coordsnew, Anew, atoms, coords_type, kpoints, name):
     out.write(st2)
 
     out.write('Direct\n')
-    print 'coords_type'
-    print coords_type
-    print len(coords_type)
+#    print 'coords_type'
+#    print coords_type
+#    print len(coords_type)
     
     #    for c in range(coordsnew.shape[0]):
     for a in atoms:

@@ -63,9 +63,18 @@ def setup_corr(phi):
         c+=1
 
 
-#  ret = []
+        #  ret = []
+#  print 'phi.Acell_super'
+#  print phi.Acell_super
+
+  ss = np.diag(phi.supercell)
+  
   for (rot,trans) in  zip( phi.dataset['rotations'], phi.dataset['translations'] ) :
 
+
+    R = np.dot(np.dot(np.linalg.inv(phi.Acell),rot.transpose()),phi.Acell).transpose()
+    Rt = R.transpose()
+            
     trans_super[:] = np.dot(trans, Acell_super_inv)
     C = []
     for c in range(ncells):
@@ -73,21 +82,38 @@ def setup_corr(phi):
       trans2[:] = trans_super+XYZ[c,:]
       trans_big[:] = np.tile(trans2,(natsuper,1))
 
-      pos_new[:] = np.dot(pos,rot.transpose()) + trans_big  #apply symmetry operations
+#      pos_new[:] = np.dot(pos,rot.transpose()) + trans_big  #apply symmetry operations
+      pos_new[:] = np.dot(np.dot(np.dot(pos, ss),rot.transpose()),np.linalg.inv(ss)) + trans_big  #apply symmetry operations
       pos_new[:] = pos_new%1
 
+
+      
       ret = np.zeros(natsuper,dtype=int)
 
       for i in range(natsuper): #check if new atom positions are same as old atom positions to see which atom goes with which
         for j in range(natsuper):
           it = True
           for ijk in range(3):
-            if abs(pos_new[i,ijk] - pos_ref[j,ijk] ) > 1e-7 and abs(abs(pos_new[i,ijk] - pos_ref[j,ijk]) - 1) > 1e-7:
+            if abs(pos_new[i,ijk] - pos_ref[j,ijk] ) > 1e-3 and abs(abs(pos_new[i,ijk] - pos_ref[j,ijk]) - 1) > 1e-3:
               it=False
           if it:
             ret1 = j
+#            print 'CORR', i,j,pos_new[i,:], pos_ref[j,:]
             break
-#        ret.append(ret1)
+          #        ret.append(ret1)
+#        if it == False:
+#          print 'failed to find', i
+#          print pos_new
+#          print pos_ref
+#          print 'rot'
+#          print rot
+#          print 'Rt'
+#          print Rt
+#          print 'trans', trans
+#          print 'trans_super', trans_super
+#          print 'trans2', trans2
+
+          
         ret[i] = ret1
 
 
@@ -95,3 +121,4 @@ def setup_corr(phi):
 
     phi.CORR_trans += C
     phi.CORR.append(C[0])
+#    print 'C[0]', C[0]

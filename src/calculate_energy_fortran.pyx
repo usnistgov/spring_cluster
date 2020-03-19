@@ -105,7 +105,13 @@ def prepare_for_energy(phiobj, supercell, np.ndarray[DTYPE_t, ndim=2] coords, np
   #put coords into u matrix in correct fashion
 
   TIME = [time.time()]
-  correspond, vacancies = phiobj.find_corresponding(coords,phiobj.coords_super)
+#  if correspond is None:
+
+  if coords.shape[0] > 500:
+    correspond, vacancies = phiobj.find_corresponding(coords,phiobj.coords_super, low_memory=True)
+  else:
+    correspond, vacancies = phiobj.find_corresponding(coords,phiobj.coords_super)
+    
   coords,types, correspond = phiobj.fix_vacancies(vacancies, coords, correspond, types)
 
   TIME.append(time.time())
@@ -166,6 +172,7 @@ def prepare_for_energy(phiobj, supercell, np.ndarray[DTYPE_t, ndim=2] coords, np
 
   types_reorder = []
   for i in range(ncells*phiobj.nat):
+#    print 'types_reorder_dict[i]', i, types_reorder_dict[i]
     types_reorder.append(types_reorder_dict[i])
 
 
@@ -177,11 +184,11 @@ def prepare_for_energy(phiobj, supercell, np.ndarray[DTYPE_t, ndim=2] coords, np
 #  print A
 #  print 
 
-  if phiobj.verbosity == 'High' or phiobj.verbosity == 'Med':
+#  if phiobj.verbosity == 'High' or phiobj.verbosity == 'Med':
 #  if True:
-    umean = np.mean(np.mean(us[:,:,:],1),0)
-    urms = np.sum((us[:,:,:]-np.tile(umean,(phiobj.nat,ncells,1)))**2,2)**0.5
-    print 'u max rms (bohr): ' + str(np.max(np.max(urms)))
+#    umean = np.mean(np.mean(us[:,:,:],1),0)
+#    urms = np.sum((us[:,:,:]-np.tile(umean,(phiobj.nat,ncells,1)))**2,2)**0.5
+#    print 'u max rms (bohr): ' + str(np.max(np.max(urms)))
 #  if phiobj.verbosity == 'High':
 #    print 'us'
 #    for na in range(nat):
@@ -208,6 +215,12 @@ def prepare_for_energy(phiobj, supercell, np.ndarray[DTYPE_t, ndim=2] coords, np
   et = np.dot(np.linalg.inv(phiobj.Acell_super),A) - np.eye(3)
   strain =  np.array(0.5*(et + et.transpose()), dtype=float, order='F')
 
+  umean = np.mean(np.mean(us[:,:,:],1),0)
+  urms = np.sum((us[:,:,:]-np.tile(umean,(phiobj.nat,ncells,1)))**2,2)**0.5
+  print 'umax rms (bohr): ' + str(np.max(np.max(urms)))
+  print 'smax', np.max(np.max(abs(strain))), [strain[0,0], strain[1,1], strain[2,2], strain[1,2], strain[0,2], strain[0,1]]
+
+  
 #  print 'A'
 #  print A
 #  print 'phiobj.Acell_super'
@@ -221,11 +234,11 @@ def prepare_for_energy(phiobj, supercell, np.ndarray[DTYPE_t, ndim=2] coords, np
     for sa in range(ncells):
       for nb in range(nat):
         for sb in range(ncells):
-          moddict[na*nat*ncells**2 + sa*ncells*nat + nb*ncells + sb] = []
+#          moddict[na*nat*ncells**2 + sa*ncells*nat + nb*ncells + sb] = []
           nsym[na*ncells+sa,nb*ncells+sb] = len(phiobj.moddict_prim[na*nat*ncells**2 + sa*ncells*nat + nb*ncells + sb])
 #          print 'moddict', phiobj.moddict_prim[na*nat*ncells**2 + sa*ncells*nat + nb*ncells + sb]
           for m_count, mmm in enumerate(phiobj.moddict_prim[na*nat*ncells**2 + sa*ncells*nat + nb*ncells + sb]):
-             moddict[na*nat*ncells**2 + sa*ncells*nat + nb*ncells + sb].append(np.array(mmm,dtype=DTYPE))
+#             moddict[na*nat*ncells**2 + sa*ncells*nat + nb*ncells + sb].append(np.array(mmm,dtype=DTYPE))
              mod_matrix[na*nat*ncells**2 + sa*ncells*nat + nb*ncells + sb,m_count, :] = np.array(mmm,dtype=DTYPE)
 
 #             mmmdA[:] = np.dot(mmm, dA)
@@ -305,11 +318,15 @@ def calculate_energy_fortran(phiobj, np.ndarray[DTYPE_t, ndim=2] A, np.ndarray[D
 
   TIME.append(time.time())
 
+  print "in calculate_energy_fortran.pyx 0 "
+  sys.stdout.flush
 
   #get matricies ready
   supercell_add, strain, UTT, UTT0, UTT0_strain, UTT_ss, UTYPES, nsym, correspond, us, mod_matrix, types_reorder =   prepare_for_energy(phiobj, supercell, coords, A, types)
 
-
+  print "in calculate_energy_fortran.pyx prepare_for_energy"
+  sys.stdout.flush
+  
   TIME.append(time.time())
 
 
@@ -322,17 +339,37 @@ def calculate_energy_fortran(phiobj, np.ndarray[DTYPE_t, ndim=2] A, np.ndarray[D
 
 
   for [dim, phi,  nonzero] in zip(dims, phi_tensors, nonzeros): #loop over difference types of terms in the model
+
+    print "in loop ", dim
+    sys.stdout.flush
+
     forces_super_t = np.zeros((nat,ncells,3),dtype=float,order='F')
     stress_t =  np.zeros((3,3),dtype=float,order='F')
     energy_t = 0.0
     t1=time.time()
 
+#    print 'TTT - decl'
     sys.stdout.flush()
     if phi.shape[0] == 0:
       print 'WARNING: dim '+str(dim)+' has no nonzero phi components, skipping energy contribution'
+      sys.stdout.flush
     else:
       #this does the actual calculation
+
+#      continue
+
+      print "in calculate_energy_fortran.pyx before energy_fortran_dope " , dim
+      sys.stdout.flush
+
+
       forces_super_t, energy_t, stress_t = energy_fortran_dope(supercell_add, nonzero, phi, strain, UTT, UTT0, UTT0_strain, UTT_ss, UTYPES, phiobj.magnetic, phiobj.vacancy, nsym, supercell, dim[0], dim[1], ncells, nat, nonzero.shape[0], nonzero.shape[1], supercell_add.shape[0],supercell_add.shape[1])
+
+      print "in calculate_energy_fortran.pyx after energy_fortran_dope " , dim
+      sys.stdout.flush
+
+      
+      if phiobj.verbosity == 'High':
+        print 'calculate_energy_fortran.pyx', dim, energy_t
 
 
     forces_super += forces_super_t #add contribution from this term

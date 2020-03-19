@@ -1,5 +1,6 @@
 #!/usr/bin/evn python
 
+
 import resource
 import sys
 import numpy as np
@@ -16,6 +17,7 @@ from itertools import permutations
 from calculate_energy_fortran import prepare_for_energy
 from calculate_energy_fortran import calc_supercell_add
 
+
 DTYPE=np.float64
 DTYPE_complex=np.complex
 DTYPE_int=np.int
@@ -28,30 +30,74 @@ ctypedef np.complex_t DTYPE_complex_t
 ctypedef np.int_t DTYPE_int_t
 
 
-def index_supercell_f(int ssind, np.ndarray[DTYPE_int_t, ndim=1] supercell, np.ndarray[DTYPE_int_t, ndim=1] mem):
-  
-  mem[:] = [ssind/(supercell[1]*supercell[2]),(ssind/supercell[2])%supercell[1],ssind%(supercell[2])]
-  return mem
 
-def supercell_index_f(np.ndarray[DTYPE_int_t, ndim=1] ss, np.ndarray[DTYPE_int_t, ndim=1] supercell ):
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+@cython.cdivision(True)
+cdef index_supercell_f(int ssind, np.ndarray[DTYPE_int_t, ndim=1] supercell, np.ndarray[DTYPE_int_t, ndim=1] mem):
+  
+  mem[0] = ssind/(supercell[1]*supercell[2])
+  mem[1] = (ssind/supercell[2])%supercell[1]
+  mem[2] = ssind%(supercell[2])
+  
+#  return mem
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+@cython.cdivision(True)
+cdef int supercell_index_f(np.ndarray[DTYPE_int_t, ndim=1] ss, np.ndarray[DTYPE_int_t, ndim=1] supercell ):
   return ss[0]*supercell[1]*supercell[2] + ss[1]*supercell[2] + ss[2]
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+@cython.cdivision(True)
+def interact(int nat, nz_cells, np.ndarray[DTYPE_int_t, ndim=1] supercell_target, np.ndarray[DTYPE_int_t, ndim=3] interaction_len_mat, np.ndarray[DTYPE_int_t, ndim=4]  interaction_mat):
+  cdef int nz,l,a,b,s1
+  cdef np.ndarray[DTYPE_int_t, ndim=1] mem1 = np.zeros(3,dtype=DTYPE_int)
+  cdef np.ndarray[DTYPE_int_t, ndim=1] mem2 = np.zeros(3,dtype=DTYPE_int)
+  cdef int ncells_target = interaction_len_mat.shape[2]
+  for nz in range(interaction_len_mat.shape[0]):
+    for atom in range(nat):
+      l = len(nz_cells[(nz,0,atom)])
+      for a,b in enumerate(nz_cells[(nz,0,atom)]):
+        index_supercell_f(b, supercell_target, mem1)
+        for s1 in range(ncells_target):
+          interaction_len_mat[nz,atom,s1] = l
+
+          index_supercell_f(s1, supercell_target, mem2)
+          mem2[0] = (mem1[0]+mem2[0])%supercell_target[0]
+          mem2[1] = (mem1[1]+mem2[1])%supercell_target[1]
+          mem2[2] = (mem1[2]+mem2[2])%supercell_target[2]
+
+          interaction_mat[a, nz,atom,s1] = supercell_index_f(mem2,supercell_target)
+
 
 
 nfactorial = np.vectorize(math.factorial)
 
 #@jit
+###########@cython.boundscheck(False)
+###########@cython.wraparound(False)
+###########@cython.nonecheck(False)
+@cython.cdivision(True)
 def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supercell_target, supercell, UTT0=[],maxdim=2):
 
-  cdef int s1, s, atom, dim_s, dim_k, dim_y, max_len, nz, dimtot, ncells, l, a, b
+  cdef int s1, s, s2,d, atom, dim_s, dim_k, dim_y, max_len, nz, dimtot, ncells, l, a, b, ncells_target
   cdef np.ndarray[DTYPE_int_t, ndim=1] sub
   cdef np.ndarray[DTYPE_int_t, ndim=1] ss_num2
-#  cdef np.ndarray[DTYPE_int_t, ndim=2] supercell_add_c
+  cdef np.ndarray[DTYPE_int_t, ndim=2] supercell_add_c
 #  cdef np.ndarray[DTYPE_int_t, ndim=1] supercell
   cdef np.ndarray[DTYPE_int_t, ndim=1] mem1
   cdef np.ndarray[DTYPE_int_t, ndim=1] mem2
   cdef np.ndarray[DTYPE_int_t, ndim=4] interaction_mat
   cdef np.ndarray[DTYPE_int_t, ndim=3] interaction_len_mat
 
+
+  
   mem1 = np.zeros(3,dtype=DTYPE_int)
   mem2 = np.zeros(3,dtype=DTYPE_int)
 
@@ -78,11 +124,11 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
 #  print 'CONSTANTS ds dk dy'
 
   #preare the constants
-  constants = np.ones((7,7,7),dtype=float)
-  for dk in range(0,7):
+  constants = np.ones((9,9,9),dtype=float)
+  for dk in range(0,9):
     for dy in range(0,dk+1):
       binomial = math.factorial(dk)/math.factorial(dy)/math.factorial(dk-dy)
-      for ds in range(0,7):
+      for ds in range(0,9):
         if ds >= 2:
           constants[ds,dk,dy] *= np.prod(np.arange(1,ds+1,dtype=float)**-1)
         if dk >= 2:
@@ -107,6 +153,7 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
 
   supercell_orig = supercell
   supercell_add_orig = supercell_add
+  
   ncells_orig = ncells
 
   TIME.append(time.time())
@@ -133,6 +180,9 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
     dim_s = nonzeros[nz,0]
     dim_k = nonzeros[nz,1]
 
+    if dim_k < 0:
+      continue
+    
     nsym = nonzeros[nz,2]
 
     dimtot = dim_s+dim_k
@@ -246,6 +296,7 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
 
             #if nonzero, we store add the new entries to our dictionary. this is why we were using tuples, so they can be hashed
             if abs(c) > 1e-8:
+#              print 'construct_elastic_cy.pyx first order', ns_str_a, c, constants[dim_s, dim_k, dim_y],phi[nz],1.0/float(nsym), ut
               if ns_str_a in interaction1:
                 interaction1[ns_str_a][-1] += c
               else:
@@ -258,9 +309,10 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
                 interaction1[ns_str_b] = [newstuff_b,c]
 
 ##########################################################
-          #now we do the second order in strain case.
+          #now we do the second order in strain case.   #          if False:         #fix me here
           if dim_y == 2:
-
+#          if False:
+            
             a=ijk[dim_k-2]
             b=ijk[dim_k-1]
             g=ijk_new[0]
@@ -402,7 +454,7 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
   TIME.append(time.time())
 
       
-  l = len(interaction1)+len(interaction2) + nonzeros.shape[0]
+  l = len(interaction1)+len(interaction2) + nonzeros.shape[0] + 50
   nonzero_huge_huge = np.zeros((l, nonzeros.shape[1]+1),dtype=int, order='F')
   phi_huge_huge = np.zeros(l,dtype=float, order='F')
 
@@ -419,17 +471,35 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
   for nz in range(nonzeros.shape[0]):
 
     dim_s = nonzeros[nz,0]
-    dim_k = nonzeros[nz,1]
+    dim_korig = nonzeros[nz,1]
 
-    nsym = nonzeros[nz,2]
+    if dim_korig < 0:
+      dim_k = 2
+      dimtot = dim_s+dim_k
+      atoms = nonzeros[nz,4:dimtot+4]
+      ijk =   [-1,-1]
+      sub[:] = 0
+      sub[0:(dimtot*3-3)] = nonzeros[nz,4+dimtot:4+dimtot+(dimtot-1)*3]
+      nsym = 1
+#      print 'new', nonzeros[nz,:]
+#      print 'res', dim_s, dim_korig, atoms, sub
 
-    dimtot = dim_s+dim_k
+    else:
 
-    atoms = nonzeros[nz,4:dimtot+4]
-    ijk =   nonzeros[nz,dimtot+4:dimtot+4+dim_k]
+      dim_k = dim_korig
+      dimtot = dim_s+dim_k
+      atoms = nonzeros[nz,4:dimtot+4]
+      ijk =   nonzeros[nz,dimtot+4:dimtot+4+dim_k]
+      sub[:] = 0
+      sub[0:(dimtot*3-3)] = nonzeros[nz,dimtot+4+dim_k:dimtot+dim_k+4+(dimtot-1)*3]
+      nsym = nonzeros[nz,2]
 
-    sub[:] = 0
-    sub[0:(dimtot*3-3)] = nonzeros[nz,dimtot+4+dim_k:dimtot+dim_k+4+(dimtot-1)*3]
+
+#    atoms = nonzeros[nz,4:dimtot+4]
+#    ijk =   nonzeros[nz,dimtot+4:dimtot+4+dim_k]
+
+#    sub[:] = 0
+#    sub[0:(dimtot*3-3)] = nonzeros[nz,dimtot+4+dim_k:dimtot+dim_k+4+(dimtot-1)*3]
 
     #in this section, we use permutation symmetry to eliminate as many of the terms as possible, weighing the remaining ones more heavily.
 
@@ -437,7 +507,9 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
 #############
     ssxd = np.zeros((dim_s,3),dtype=int)
     for d in range(0, dim_s-1):
-      ssx[:] = nonzeros[nz,4+dimtot+dim_k+(d)*3:4+dimtot+dim_k+(d+1)*3]
+      #      ssx[:] = nonzeros[nz,4+dimtot+dim_k+(d)*3:4+dimtot+dim_k+(d+1)*3]
+      ssx[:] = sub[d*3:(d+1)*3]
+#      ssx[:] = sub
       ssxd[d,:] = ssx[:]
 
     factor_s = try_to_cull(dim_s, phiobj.nat, ncells, supercell, atoms[0:dim_s], np.ones(dim_s,dtype=int), ssxd)
@@ -448,14 +520,15 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
 #############
     ssxd = np.zeros((dim_k,3),dtype=int)
     for d in range(dim_s,dimtot-1):
-      ssx[:] = nonzeros[nz,4+dimtot+dim_k+(d)*3:4+dimtot+dim_k+(d+1)*3]
+#      ssx[:]             = nonzeros[nz,4+dimtot+dim_k+(d)*3:4+dimtot+dim_k+(d+1)*3]
+      ssx[:] = sub[d*3:(d+1)*3]
       ssxd[d-dim_s,:] = ssx[:]
 
     factor_k = try_to_cull(dim_k, phiobj.nat, ncells, supercell, atoms[dim_s:dimtot], ijk, ssxd )
-#    print 'factor_k', factor_k, dim_k, atoms[dim_s:dimtot], ijk, ssxd
+#    print 'factor_k', factor_k, dim_korig, dim_k, atoms[dim_s:dimtot], ijk, sub, ssxd
 #############
     if factor_s > 0 and factor_k > 0 and abs(phi[nz]) > 1e-8:
-      nonzero_huge_huge[NZ,0:3] = [dim_s,dim_k,0]
+      nonzero_huge_huge[NZ,0:3] = [dim_s,dim_korig,0]
       nonzero_huge_huge[NZ,3] = nonzeros[nz,3]
 
       nonzero_huge_huge[NZ,4:4+dimtot] = atoms
@@ -467,13 +540,14 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
       ss_num = np.zeros(dimtot,dtype=int)
       ssx = np.zeros(3,dtype=int)
       for d in range(0, dimtot-1):
-        ssx[:] = nonzeros[nz,4+dimtot+dim_k+(d)*3:4+dimtot+dim_k+(d+1)*3]
+#        ssx[:] = nonzeros[nz,4+dimtot+dim_k+(d)*3:4+dimtot+dim_k+(d+1)*3]
+        ssx[:] = sub[d*3:(d+1)*3]
         ss_num[d] = ssx[2]%supercell_target[2]+supercell_target[2]+1+  (ssx[1]%supercell_target[1]+supercell_target[1])*(supercell_target[2]*2+1) + (ssx[0]%supercell_target[0]+supercell_target[0])*(supercell_target[2]*2+1)*(supercell_target[1]*2+1)
 
       #we finally add the results to our new data format
       nonzero_huge_huge[NZ, dimtot+4+dim_k:dimtot+4+dim_k+dimtot-1] = ss_num[0:dimtot-1]
 
-      phi_huge_huge[NZ] = phi[nz]*constants[dim_s,dim_k,0] * factor_s * factor_k
+      phi_huge_huge[NZ] = phi[nz]*constants[dim_s,abs(dim_korig),0] * factor_s * factor_k
 
 
       for at in atoms:
@@ -496,6 +570,9 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
       dim_k = inter[x][0][1]
       dim_y = inter[x][0][2]
 
+      if dim_k < 0:
+        continue
+      
       dimtot = dim_s+dim_k+dim_y
 
       atoms = inter[x][0][3]+inter[x][0][4]
@@ -599,7 +676,45 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
         
   print 'CONSTRUCT TOTAL ' + str(l) + ' REMAIN ' + str(nz) + ' CULLED ' + str(l-(nz)) + ' using permutation symmetry'
 
-#now nonzero_huge_huge and phi_huge_huge have the data we need to run the model
+  if phiobj.extra_strain == True:
+#  if False:
+    print 'adding extra_strain terms'
+    for a,(order, comp) in enumerate(phiobj.extra_strain_terms):
+      for cc in comp:
+        dim_s = 0
+        dim_k = 0
+        dim_y = order
+        ind = phiobj.reverse_voight(cc)
+        ind = []
+
+        if type(cc) is list:
+          for i in cc:
+            ind.append(phiobj.reverse_voight(i))
+        else:
+          ind.append(phiobj.reverse_voight(cc))  
+            
+        if order == 1:
+          phi_huge_huge[nz] = -phiobj.extra_strain_coeffs[a]#/float(np.prod(supercell))*float(np.prod(supercell_target))
+        elif order == 2:
+          phi_huge_huge[nz] = -phiobj.extra_strain_coeffs[a]*0.5  #/float(np.prod(supercell))*float(np.prod(supercell_target))*0.5
+        elif order == 3:
+          phi_huge_huge[nz] = -phiobj.extra_strain_coeffs[a]*1.0/6.0#/float(np.prod(supercell))*float(np.prod(supercell_target))*1.0/6.0
+        
+        nonzero_huge_huge[nz,0:3] = [0,0,dim_y]
+        nonzero_huge_huge[nz,3] = 0
+
+        if order == 1:
+          nonzero_huge_huge[nz,4:4+2] = [ind[0][0],ind[0][1]]
+        if order == 2:
+          nonzero_huge_huge[nz,4:4+4] = [ind[0][0],ind[0][1], ind[1][0], ind[1][1]]
+        if order == 3:
+          nonzero_huge_huge[nz,4:4+6] = [ind[0][0],ind[0][1], ind[1][0], ind[1][1], ind[2][0], ind[2][1]]
+#          print 'EEEE', nonzero_huge_huge.shape, [ind[0],ind[1], ind[0], ind[1], ind[0], ind[1]], cc
+        nz += 1
+        
+
+        
+  #now nonzero_huge_huge and phi_huge_huge have the data we need to run the model
 
   nonzero_huge_huge = nonzero_huge_huge[0:nz,:]
   phi_huge_huge = phi_huge_huge[0:nz]
@@ -621,11 +736,16 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
 #  supercell_add, strain, UTT, UTT0, UTT0_strain, UTT_ss, UTYPES, nsym, correspond, us, mod_matrix, types_reorder = prepare_for_energy(phiobj, phiobj.supercell, phiobj.coords_super,  phiobj.Acell_super, phiobj.coords_type_super)
 
   supercell_add, supercell_sub = calc_supercell_add(supercell_target)
+  supercell_add_c = np.array(supercell_add, dtype=DTYPE_int)
+  
   supercell_sub=[]
 
   for nz in range(nonzero_huge_huge.shape[0]):
     dim_s=nonzero_huge_huge[nz,0]
     dim_k=nonzero_huge_huge[nz,1]
+    if dim_k < 0:
+      dim_k = 2
+      
     dim_y=nonzero_huge_huge[nz,2]
     dimtot = dim_s+dim_k+dim_y
     atoms = nonzero_huge_huge[nz,4:4+dimtot-dim_y]
@@ -636,23 +756,32 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
     ss_num2[dim_s+dim_k-1] = 0
 
 
+    s1=0
 
-    for s1 in range(1):
-      for atom in range(phiobj.nat):
-        nz_cells[(nz,s1,atom)] = set()
-        if atom not in atoms:
-          continue
-        for s in range(ncells_target):
+    for atom in range(phiobj.nat):
+      nz_cells[(nz,s1,atom)] = set()
+      if atom not in atoms:
+        continue
+      for s in range(ncells_target):
 
-          for d in range(dim_s+dim_k):
-            sub[d] = supercell_add[s,ss_num2[d]-1]-1
-          sub[dim_s+dim_k-1] = s
-#          print 'sub ' +str(s) + ' ' + str(sub[0:dim_s+dim_k])
+        for d in range(dim_s+dim_k):
+          sub[d] = supercell_add_c[s,ss_num2[d]-1]-1
+        sub[dim_s+dim_k-1] = s
 
-          if s1 in sub[0:dim_s+dim_k]:
+
+        for s2 in range(dim_s+dim_k):
+          if sub[s2] == s1:
             nz_cells[(nz,s1,atom)].add(s)
-          max_len = max(len(nz_cells[(nz,s1,atom)]), max_len)
+            break
 
+  s1=0
+  for nz in range(nonzero_huge_huge.shape[0]):
+    for atom in range(phiobj.nat):
+        max_len = max(len(nz_cells[(nz,s1,atom)]), max_len)
+
+  TIME.append(time.time())
+
+          
   #these interaction matricies maintain a list of which cells and atoms are involved in a given interaction in our supercell
 
   #for instance, interaction_mat[0, 1,2,3]=4 tells us that if we are considering atom=2 and cell=3 as our monte carlo step
@@ -665,33 +794,37 @@ def construct_elastic(phiobj,nonzeros, phi, np.ndarray[DTYPE_int_t, ndim=1] supe
 
   interaction_mat = np.zeros((max_len,nonzero_huge_huge.shape[0], phiobj.nat, ncells_target),dtype=DTYPE_int, order='F')
   interaction_len_mat = np.zeros((nonzero_huge_huge.shape[0], phiobj.nat, ncells_target),dtype=DTYPE_int, order='F')
-  for nz in range(nonzero_huge_huge.shape[0]):
-    for atom in range(phiobj.nat):
-      l = len(nz_cells[(nz,0,atom)])
-      for a,b in enumerate(nz_cells[(nz,0,atom)]):
-        mem1 = index_supercell_f(b, supercell_target, mem1)
-        for s1 in range(ncells_target):
-          interaction_len_mat[nz,atom,s1] = l
 
-          mem2 = index_supercell_f(s1, supercell_target, mem2)
-          mem2[0] = (mem1[0]+mem2[0])%supercell_target[0]
-          mem2[1] = (mem1[1]+mem2[1])%supercell_target[1]
-          mem2[2] = (mem1[2]+mem2[2])%supercell_target[2]
+  interact(phiobj.nat, nz_cells, supercell_target, interaction_len_mat, interaction_mat)
 
-          interaction_mat[a, nz,atom,s1] = supercell_index_f(mem2,supercell_target)
+#  for nz in range(nonzero_huge_huge.shape[0]):
+#    for atom in range(phiobj.nat):
+#      l = len(nz_cells[(nz,0,atom)])
+#      for a,b in enumerate(nz_cells[(nz,0,atom)]):
+#        mem1 = index_supercell_f(b, supercell_target, mem1)
+#        for s1 in range(ncells_target):
+#          interaction_len_mat[nz,atom,s1] = l
+#
+#          mem2 = index_supercell_f(s1, supercell_target, mem2)
+#          mem2[0] = (mem1[0]+mem2[0])%supercell_target[0]
+#          mem2[1] = (mem1[1]+mem2[1])%supercell_target[1]
+#          mem2[2] = (mem1[2]+mem2[2])%supercell_target[2]
+#
+#          interaction_mat[a, nz,atom,s1] = supercell_index_f(mem2,supercell_target)
 
 #          print str([dim_s,dim_k,dim_y])+' nz_cells ' + str((nz,s1,atom)) + '   ' + str(nz_cells[(nz,0,atom)])+' ' +str([a,b,s1,mem1,mem2, supercell_index_f(mem2,supercell)])
 
   TIME.append(time.time())
 
 
-  if phiobj.verbosity == 'High':
-#  if True:
+#  if phiobj.verbosity == 'High':
+  if True:
     print 'TIME construct_elastic'
     for T2, T1 in zip(TIME[1:],TIME[0:-1]):
       print T2 - T1
 
 
+      
 #  print 'COMBINED'
 #  for nz1 in range(nz):
 #    print [nonzero_huge_huge[nz1,:], phi_huge_huge[nz1]]

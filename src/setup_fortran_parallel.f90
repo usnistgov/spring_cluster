@@ -94,7 +94,7 @@
   
   subroutine setup_fortran(Umat,atomcode,atomcode_ds,Tinv,natsuper, useenergy,usestress,energy_weight, nonzero,&
        UTT, Ustrain,UTT0, UTT0_strain, UTT_ss, TUnew, supercell_list, magnetic_mode, vacancy_mode, startind_c, nind_c, &
-       dim_s,dim_k,dimtot,tensordim,symmax,unitsize,ntotal_ind,tinvcount,tensordim1,tinvcount3,nstartind_c,&
+       dim_s,dim_k,dimtot,dim_s_old,tensordim,symmax,unitsize,ntotal_ind,tinvcount,tensordim1,tinvcount3,nstartind_c,&
        nnind_c,nnonzero,nnonzero2, ncalc,natsupermax, supercell0,supercell1,&
        supercell2, nat)
 
@@ -120,6 +120,7 @@
 
     USE omp_lib
     implicit none
+    integer :: dim_s_old
     integer symmax(tinvcount), sym, nat
     integer supercell_list(ncalc, 6)
     integer :: stress_ind
@@ -132,7 +133,8 @@
     integer :: tensordim1
 
     double precision :: Tinv(tinvcount, tensordim1, tinvcount3)
-
+    double precision :: val
+    
     logical :: magnetic_mode, found
     integer :: vacancy_mode
     integer :: d1
@@ -233,9 +235,8 @@
        binomial(d+1) = dble(factorial(abs(dim_k)) / factorial(d) / factorial(abs(dim_k)-d)) * energyf 
        binomial_force(d+1) =  dble((abs(dim_k)-d))* binomial(d+1)
        binomial_stress(d+1) = dble(d)*binomial(d+1)
-
        binomial(d+1) = binomial(d+1) * energy_weight
-
+       
 !       write(*,*) 'binomial_stress', d,d+1, binomial_stress(d+1), binomial_force(d+1)
     enddo
 
@@ -263,6 +264,9 @@
 !$OMP c, t, u0s2, u0ss2, nzl, x,y,z,c_ijk,sym,sym1,d1,i,c_ijk2,c_ijk3,dim_y, m, f,factor,xp,yp,zp,ind2,ind1,a,u_start )
 !$OMP DO
     do c = 1, ncalc           !loop over the different data sets we are fitting to
+
+!       WRITE(*,*) "FORT start", c
+
        u_start = unitsize*(c-1)
 !       Umat_local(:,:) = 0.0
        do nzl = 1, nnonzero
@@ -374,19 +378,30 @@
                          !this part is all for the negative dimension fitting, which may not even work
                          if (dim_k < 0 ) then
 
+                            ut_c = 1.0
+                            if (dim_s_old == 1) then
+                               ut_c = max(TUnew(c,atoms_new(1)+1), TUnew(c,atoms_new(2)+1))
+                            else
+                               do d = 1,dim_s_old   !cluster vars
+                                  ut_c = ut_c * TUnew(c,atoms_new(d)+1)
+                               enddo
+                            endif
+!                            write(*,*) 'FORT DDDDDDDDD', dim_s, dim_s_old,ut_c
                             ut2 = 0.0
                             ut20 = 0.0
                             do i=1,3
-                               ut2 = ut2 +(UTT(c,atoms_new(dim_s+1)+1, i)-UTT(c,atoms_new(dim_s+2)+1, i)&
-                                    - UTT0_strain(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1) + &
+                               ut2 = ut2 +(-UTT(c,atoms_new(dim_s+1)+1, i)+UTT(c,atoms_new(dim_s+2)+1, i)&
+                                    + UTT0_strain(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1) + &
                                     UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1)  )**2
 
                                ut20 = ut20 +(UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1)  )**2
+
                             enddo
                             !                               ut2 = ut2 
+!                            write(*,*) 'FORT SETUP', c, ut2** 0.5 , ut20**0.50,ut2** 0.5 - ut20**0.50
                             u0 = (ut2** 0.5 - ut20**0.50)
                             ut = u0 ** abs(dim_k)
-!                            write(*,*) 'utuo', ut,u0
+!                            write(*,*) 'FORT Sutuo', ut, u0
                             u0s = 1.0
                             u0ss = 1.0
                             ut_s = 1.0
@@ -396,15 +411,31 @@
 
                             do i = 1,3
 
-                               Umat(u_start+atoms_new(dimtot)*3+i, startind_c(ngrp)+ind) = & 
-                                    Umat(u_start+atoms_new(dimtot)*3+i, startind_c(ngrp)+ind) &
-                                    -   &
+                               
+                               Umat(u_start+atoms_new(dim_s+2)*3+i, startind_c(ngrp)+ind) = & 
+                                    Umat(u_start+atoms_new(dim_s+2)*3+i, startind_c(ngrp)+ind) &
+                                    +   &
                                      ut_c* abs(dim_k)* u0 ** (abs(dim_k)-1.0) * &
                                      (ut2** (-0.5) ) * binomial(1)/energy_weight* &
-                                    (UTT(c,atoms_new(dim_s+1)+1, i)-UTT(c,atoms_new(dim_s+2)+1, i)&
-                                    - UTT0_strain(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1) + &
+                                    (-UTT(c,atoms_new(dim_s+1)+1, i)+UTT(c,atoms_new(dim_s+2)+1, i)&
+                                    + UTT0_strain(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1) + &
                                     UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1))
-! + &
+
+
+                               
+                               
+!!                               write(*,*) 'FORT F', tempvar, ut_c,abs(dim_k),u0 ** (abs(dim_k)-1.0),(ut2** (-0.5) ),ut2**0.5, -UTT(c,atoms_new(dim_s+1)+1, i)+UTT(c,atoms_new(dim_s+2)+1, i)+ UTT0_strain(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1) +UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1)
+
+                               
+!                               write(*,*) 'fghi', i, atoms_new(dimtot), ut_c, abs(dim_k), u0, ut2**(0.5), ut20**(0.5),  binomial(1), -   &
+!                                    ut_c* abs(dim_k)* u0 ** (abs(dim_k)-1.0) * &
+!                                    (ut2** (-0.5) ) * binomial(1)/energy_weight* &
+!                                    (UTT(c,atoms_new(dim_s+1)+1, i)-UTT(c,atoms_new(dim_s+2)+1, i)&
+!                                    - UTT0_strain(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1) + &
+!                                    UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym1))
+                               
+
+                               ! + &
 !!                                    UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym))
 !                               write(*,*) c, i, atoms_new(dimtot),'aaa',ut_c, u0 ** (abs(dim_k)-1.0), ut2** (-0.5) , &
 !                                    (UTT(c,atoms_new(dim_s+1)+1, i)-UTT(c,atoms_new(dim_s+2)+1, i)&
@@ -416,10 +447,11 @@
 !                                    UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,i, sym))
                             enddo
                             if (useenergy > 0) then
+!                               write(*,*) 'FORT EEEEEE', dim_s, dim_k, dim_s_old,ut_c, ut, 0.5*binomial(1) * ut_c*ut
 
                                Umat(u_start+unitsize, startind_c(ngrp)+ind)  = Umat(u_start+unitsize, startind_c(ngrp)+ind)&                     !now add energy data
                                     - 0.5*binomial(1) * ut_c*ut 
-!                               write(*,*) 'EEEEEE', - 0.5*binomial(1) * ut_c*ut, ut_c, ut
+!                               write(*,*) 'FORT EEEEEE', - 0.5*binomial(1) * ut_c*ut, ut_c, ut
                             endif
 
                             if (usestress > 0 .and. dim_k < 0 ) then 
@@ -428,11 +460,11 @@
                                      t = stress_ind(c_ijk2-1, c_ijk3-1)
                                      Umat(u_start+natsuper*3+t, startind_c(ngrp)+ind) = & 
                                           Umat(u_start+natsuper*3+t, startind_c(ngrp)+ind) &
-                                    - binomial(1)*  &
+                                    + binomial(1)*  &
                                      ut_c* abs(dim_k)* u0 ** (abs(dim_k)-1.0) * &
                                      (ut2** (-0.5) ) * 0.5 *  &
-                                    (UTT(c,atoms_new(dim_s+1)+1, c_ijk2)-UTT(c,atoms_new(dim_s+2)+1, c_ijk2)&
-                                    - UTT0_strain(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,c_ijk2, sym1) + &
+                                    (-UTT(c,atoms_new(dim_s+1)+1, c_ijk2)+UTT(c,atoms_new(dim_s+2)+1, c_ijk2)&
+                                    + UTT0_strain(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,c_ijk2, sym1) + &
                                     UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,c_ijk2, sym1)) * &
                                     UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,c_ijk3, sym1)
 !                                          +  binomial_force(1) &
@@ -441,6 +473,7 @@
   !                                        + UTT0_strain(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,c_ijk2, sym)) *&
   !                                        (UTT0(c, atoms_new(dim_s+2)+1,atoms_new(dim_s+1)+1,c_ijk2, sym))*0.5
 
+                                     
                                   enddo
                                enddo
                             endif
@@ -452,6 +485,10 @@
                          else
 
                             do dim_y = 0, min(dim_k,2)
+
+                               if (dim_y > 0 .and. dim_s == 0 .and. dim_k == 1) then
+                                  cycle
+                               endif
                                !                         do dim_y = 2,2
 
                                !prepare the variables we need
@@ -463,6 +500,7 @@
                                ut_ss = 1.0
                                do d = dimtot-dim_y+1, dimtot-2
                                   ut_ss = ut_ss * (-1.0) * UTT0_strain(c, atoms_new(dimtot)+1,atoms_new(d)+1,ijk(d-dim_s)+1, sym1)
+!                                  write(*,*), 'UTSS', ijk(d-dim_s)+1, atoms_new(dimtot)+1,atoms_new(d)+1, UTT0_strain(c, atoms_new(dimtot)+1,atoms_new(d)+1,ijk(d-dim_s)+1, sym1)
                                enddo
 
                                ut_s = ut_ss
@@ -508,6 +546,12 @@
                                              Umat(u_start+atoms_new(dimtot-dim_y)*3+ijk(dim_k-dim_y)+1, startind_c(ngrp)+ind) &
                                              +  binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_s * u0s
 
+!                                        write(*,*) "FORT y<2", dim_k,dim_y, c_ijk, ind, ut_c, ut, ut_s, u0s
+!                                        if (abs(binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_s * u0s) > 1d-7) then
+!                                        
+!                                           write(*,*) "FORT dim_y < 2", binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_s * u0s
+!                                           write(*,*) "FORT b", dim_k,dim_y, c_ijk, ind, ut_c, ut, ut_s, u0s
+!                                        endif
                                         !                                     write(*,*) 'SSS0', binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_s * u0s,&
                                         !                                          dim_y, binomial_force(dim_y+1),Tinv(nzl, c_ijk,ind),ut_c,ut,ut_s,u0s
 
@@ -518,10 +562,25 @@
                                              Umat(u_start+atoms_new(dimtot-dim_y)*3+ijk(dim_k-dim_y)+1, startind_c(ngrp)+ind) &
                                              +  binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_s * u0s
                                         !
+
+ !                                       if (abs(binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_s * u0s) > 1e-7) then
+ !                                          write(*,*) "FORT else 1 ", binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_s * u0s
+ !                                          write(*,*) "FORT c", dim_k,dim_y, c_ijk, ind, ut_c, ut, ut_s, u0s
+ !                                       endif
+                                        
                                         Umat(u_start+atoms_new(dimtot-dim_y)*3+ijk(dim_k-dim_y)+1, startind_c(ngrp)+ind) = & 
                                              Umat(u_start+atoms_new(dimtot-dim_y)*3+ijk(dim_k-dim_y)+1, startind_c(ngrp)+ind) &
                                              + (-0.5)*binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_ss * & 
                                              u0ss * Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1)
+
+ !                                       if (abs((-0.5)*binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_ss * &
+ !                                            u0ss * Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1)) > 1d-7) then
+                                           
+!                                           write(*,*) "FORT else 2 ", (-0.5)*binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_ss * &
+!                                                u0ss * Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1)
+!                                           write(*,*) "FORT c", dim_k,dim_y, c_ijk, ind, ut_c, ut, ut_s, u0s
+!                                        endif
+                                        
 
                                         !                                     write(*,*) 'SSS1', binomial_force(dim_y+1)*Tinv(nzl, c_ijk,ind) * ut_c* ut * ut_s * u0s,&
                                         !                                          dim_y, binomial_force(dim_y+1),Tinv(nzl, c_ijk,ind),ut_c,ut,ut_s,u0s
@@ -544,11 +603,21 @@
                                      if (dim_y >=2) then
                                         Umat(u_start+unitsize,startind_c(ngrp)+ind)  = Umat(u_start+unitsize, startind_c(ngrp)+ind)&                     !now add energy data
                                              - binomial(dim_y+1) * ut_c*ut*ut_s*u0*u0s * Tinv(nzl,c_ijk,ind)
-
+!
+!                                        if (abs(binomial(dim_y+1) * ut_c*ut*ut_s*u0*u0s * Tinv(nzl,c_ijk,ind))>1e-10) then!a
+!
+!                                           write(*,*) c, 'OLDFORTA', -binomial(dim_y+1) * ut_c*ut*ut_s*u0*u0s * Tinv(nzl,c_ijk,ind),ut_s, u0s
+!                                           
+!                                        endif
                                         Umat(u_start+unitsize,startind_c(ngrp)+ind)  = Umat(u_start+unitsize, startind_c(ngrp)+ind)&                     !now add energy data
                                              - (-0.5)*binomial(dim_y+1) * ut_c*ut*u0*ut_ss*u0ss * Tinv(nzl,c_ijk,ind)  &
                                              * Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1)
 
+!                                        if (abs((-0.5)*binomial(dim_y+1) * ut_c*ut*u0*ut_ss*u0ss * Tinv(nzl,c_ijk,ind)*Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1)) > 1e-10) then
+!                                           write(*,*)  c, 'OLDFORTB', -1*(-0.5)*binomial(dim_y+1) * ut_c*ut*u0*ut_ss*u0ss * Tinv(nzl,c_ijk,ind)* Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1), ut_ss, u0ss, Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1)
+!                                        endif
+                                        
+                                        
                                         !                                     write(*,*) c, 'EEE1', binomial(dim_y+1) * ut_c*ut*ut_s*u0*u0s * Tinv(nzl,c_ijk,ind),  &
                                         !                                          (-0.5)*binomial(dim_y+1) * ut_c*ut*u0*ut_ss*u0ss * Tinv(nzl,c_ijk,ind)  &
                                         !                                          * Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1), &
@@ -575,6 +644,16 @@
                                            Umat(u_start+natsupermax*3+t, startind_c(ngrp)+ind)  = &
                                                 Umat(u_start+natsupermax*3+t, startind_c(ngrp)&      !stress
                                                 +ind) + binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind)
+
+
+!                                           if (abs(binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind)) > 1e-10) then
+!                                              write(*,*) 'FORTOLD', c, t, binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind),ut_s
+!                                           endif
+                                           
+!                                           if (abs(binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind)) > 1e-10) then
+!                                              write(*,*) 'AAAA', u_start+natsupermax*3+t, startind_c(ngrp)+ind,binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind)
+!                                           endif
+                                           
                                            !!                                        write(*,*) natsuper*3+t, 'FORTstress', t, ijk(dim_k), c_ijk2-1,&
                                            !!                                             binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind),&
                                            !!                                             ut_c,ut,ut_s ,u0, u0s2
@@ -584,20 +663,36 @@
                                         do c_ijk2 = ijk(dim_k)+1,3
                                            t = stress_ind(ijk(dim_k), c_ijk2-1)
                                            u0s2 = UTT0(c,atoms_new(dimtot)+1,atoms_new(dimtot-1)+1, c_ijk2,  sym1)
+
                                            Umat(u_start+natsupermax*3+t, startind_c(ngrp)+ind)  = &
                                                 Umat(u_start+natsupermax*3+t, startind_c(ngrp)&      !stress
                                                 +ind) + binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind)
+
+!                                           if (abs(binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind)) > 1e-10) then
+!                                              write(*,*) 'BBBB', u_start+natsupermax*3+t, startind_c(ngrp)+ind, binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind)
+!                                           endif
                                            !!                                        write(*,*) natsuper*3+t, 'FORTstress', t, ijk(dim_k), c_ijk2-1,&
                                            !!                                             binomial_stress(dim_y+1)*ut_c*ut*ut_s *u0*  u0s2* Tinv(nzl,c_ijk,ind),&
                                            !!                                             ut_c,ut,ut_s ,u0, u0s2
                                         enddo
 
                                         if (ijk(dim_k-1) <= ijk(dim_k)) then
+ !!                                       if (.True.) then
                                            t = stress_ind(ijk(dim_k-1), ijk(dim_k))
                                            Umat(u_start+natsupermax*3+t, startind_c(ngrp)+ind)  = &
                                                 Umat(u_start+natsupermax*3+t, startind_c(ngrp)&      !stress
                                                 +ind) + (-0.25)*binomial_stress(dim_y+1) &
                                                 *ut_c*ut*ut_ss *u0*  u0ss * Tinv(nzl,c_ijk,ind)
+
+ !                                          if (abs((-0.25)*binomial_stress(dim_y+1) &
+!                                                *ut_c*ut*ut_ss *u0*  u0ss * Tinv(nzl,c_ijk,ind)) > 1e-10) then
+ !                                             write(*,*) 'DDDD', u_start+natsupermax*3+t, startind_c(ngrp)+ind, (-0.25)*binomial_stress(dim_y+1) &
+ !                                                  *ut_c*ut*ut_ss *u0*  u0ss * Tinv(nzl,c_ijk,ind), ut_c, ut, ut_ss, u0, u0ss, Tinv(nzl,c_ijk,ind)
+ !                                             write(*,*) 'DDDD2', ijk(dim_k-1), ijk(dim_k), dim_s, dim_k, dim_y
+                                           !                                          endif
+                                           
+!                                           write(*,*) (-0.25)*binomial_stress(dim_y+1)**ut_c*ut*ut_ss *u0*  u0ss * Tinv(nzl,c_ijk,ind), 'FORTSTRESS0 ', t, c, c_ijk, 't', 'v', (-0.25)*binomial_stress(dim_y+1) * ut_c*Tinv(nzl,c_ijk,ind),ut*u0,  u0ss
+                                           
                                         endif
 
                                         do c_ijk2 = 1,3
@@ -611,6 +706,15 @@
                                                    +ind) + (0.25)*binomial_stress(dim_y+1)&
                                                    *ut_c*ut*ut_ss *u0*  u0ss2* Tinv(nzl,c_ijk,ind)*&
                                                    Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1)
+
+!                                              if (abs((0.25)*binomial_stress(dim_y+1)*ut_c*ut*ut_ss *u0*  u0ss2* Tinv(nzl,c_ijk,ind)*Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1)) > 1e-10) then
+!                                                 write(*,*) 'CCCC', u_start+natsupermax*3+t, startind_c(ngrp)+ind, (0.25)*binomial_stress(dim_y+1)*ut_c*ut*ut_ss *u0*  u0ss2* &
+!                                                      Tinv(nzl,c_ijk,ind)*Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1), Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1)
+!                                              endif
+
+!                                              write(*,*) (0.25)*binomial_stress(dim_y+1)*ut_c*ut*ut_ss *u0*  u0ss2* Tinv(nzl,c_ijk,ind)*Ustrain(c,ijk(dim_k-1)+1,ijk(dim_k)+1), 'FORTSTRESS  ', t, c,c_ijk, 't', c_ijk2,c_ijk3,t,'v', (0.25)*binomial_stress(dim_y+1) , ut_c,Tinv(nzl,c_ijk,ind),'a',ut*u0,  u0ss2, Ustrain(c, ijk(dim_k-1)+1,ijk(dim_k)+1)
+
+                                              
                                            enddo
                                         enddo
                                         !!
@@ -630,6 +734,12 @@
 
        end do
 
+
+!       write(*,*) 'UMAT'
+!       do x = 1, unitsize*ncalc
+!          write(*,*) x, Umat(x,:)
+!       enddo
+       
 !!       write(*,*) c, 'supercell_list_fort', supercell_list(c,:)
 !       if (.False.) then
 

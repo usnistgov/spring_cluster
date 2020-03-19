@@ -23,7 +23,8 @@ import os
 def DFT(infile, number=0):
     try:
         outfile = infile+'.'+str(number)+'.out'
-        runstr = '/usr/bin/mpirun -np 16 /users/kfg/codes/espresso-5.1/bin/pw.x < ' + infile+'.'+str(number) +' > ' + outfile   #EDIT ME!!!!!!!!!!!!!!!!!
+        ###        runstr = '/usr/bin/mpirun -np 16 /users/kfg/codes/espresso-5.1/bin/pw.x < ' + infile+'.'+str(number) +' > ' + outfile   #EDIT ME!!!!!!!!!!!!!!!!!
+        runstr = '/usr/local/bin/mpirun -np 16 /users/kfg/codes/q-e-qe-6.3.rc1/bin/pw.x < ' + infile+'.'+str(number) +' > ' + outfile   #EDIT ME!!!!!!!!!!!!!!!!!
         print 'Trying to run following command:'
         print runstr
         print
@@ -68,6 +69,7 @@ mysc = spring_cluster(high_sym, supercell=supercell, outputfile=high_sym_out)
 
 mysc.set_regression('rfe') # to use feature elimination
 
+mysc.myphi.vasp_mode = True
 
 mysc.setup_cutoff([0,2],100)
 mysc.setup_cutoff([0,3],-2)

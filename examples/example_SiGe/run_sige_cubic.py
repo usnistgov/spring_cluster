@@ -32,7 +32,7 @@ mysc = spring_cluster(high_sym, supercell=supercell, outputfile=high_sym_out)
 #set regression type to recursive feature elimination
 #this will eliminate a bunch of features, but you can make the example run faster if you comment it out or set it to 'lsq'
 
-mysc.set_regression('rfe', 'max-median')
+mysc.set_regression('rfe')
 
 # if you set mysc.set_regression('rfe', num_keep=300), it will skip the cross-validation and directly keep 300 predictors
 
@@ -44,7 +44,7 @@ mysc.load_types(typesdict,doping_energy)
 # we set an exact constraint so the first structure's energy will be correct (in file files_train the first structure is data/Ge_diamond.scf.in.out)
 mysc.set_exact_constraint([0])
 
-mysc.set_verbosity('High') #default is low
+mysc.set_verbosity('Low') #default is low
 
 # Setup model terms with no cluster variable. harmonic and cubic
 mysc.setup_cutoff([0,2],100)

@@ -1,5 +1,6 @@
 #!/usr/bin/evn python
 
+
 import random
 import sys
 import numpy as np
@@ -46,7 +47,7 @@ class spring_cluster:
 
         
 
-    self.myphi.useewald = False
+    self.myphi.use_borneffective = False
     self.supercell = supercell
     self.supercell_orig = copy.copy(supercell)
 
@@ -69,7 +70,31 @@ class spring_cluster:
       self.load_hs_output(outputfile)
 
     self.relax_load_freq=6 #by default load every 6th structure from a relaxation
+    self.extra_strain = False
+    self.usemultifit = False
 
+    self.fraction = 0.0
+    self.do_repair = False
+    self.repaircell = []
+
+    self.spring_const = 1.0
+    self.unfold_number  = 0 # we will unfold atom positions if supercell < unfold_number
+    
+  def add_strain_term(self, order=1, component=[0,1,2]):
+
+    print 'add_strain_term, order=', order,' comp=', component
+#    if order != 1:
+#      print 'error only order 1 is coded, skipping'
+#      return
+    
+    self.extra_strain = True
+    self.myphi.extra_strain = True
+
+    self.myphi.add_strain_term(order, component)
+
+    
+    
+    
   def set_relax_load_freq(self, num):
     self.relax_load_freq=num
     self.myphi.relax_load_freq=num
@@ -88,9 +113,16 @@ class spring_cluster:
     print 'Use weight_by_energy ' , t
 
   def set_exact_constraint(self, d=[]):
-    self.myphi.exact_constraint = d
+    if type(d) is int:
+      self.myphi.exact_constraint += [d]
+    else:
+      self.myphi.exact_constraint += d      
     print 'Setting exact_constraint' , d
 
+  def set_ineq_constraint(self, d=[]):
+    self.myphi.ineq_constraint += d
+    print 'Setting ineq_constraint' , d
+    
   def set_vacancy_mode(self, m=True):
     if m == True:
       print 'Turning on vacancies'
@@ -212,7 +244,7 @@ class spring_cluster:
 #      print 'Using any available terms in fitting'
 
     print
-    if self.myphi.useewald:
+    if self.myphi.use_borneffective:
       print 'Using Born effective charges'
       print ' from ' + str(self.zeff_file)
     else:
@@ -240,19 +272,41 @@ class spring_cluster:
     #get the energy for the reference structure from an output file
     self.myphi.load_hs_output(hs_file_out)
 
+
+  def load_zeff_model(self,diel, sites, types, zstars):
+
+    self.myphi.load_zeff_model(diel, sites, types, zstars)
+    z = []
+    for n in range(self.myphi.nat):
+      z.append(np.eye(3,dtype=float))
+    self.load_zeff(dielectric=diel, zeff=z)
+    
+
   def load_zeff(self, fc=None, dielectric=None, zeff=None):
     #get the Born effective charges and dielectric constants from a QE .fc file
     if fc is None or fc.lower() == 'none':
       if dielectric is None:
-        self.myphi.useewald = False
+        self.myphi.use_borneffective = False
         print 'turning OFF dielectric constant / Born effective charges'
         return
 
     self.zeff_file = fc
-    self.myphi.useewald = True
+    self.myphi.use_borneffective = True
+    
     self.myphi.load_harmonic_new(filename=fc, asr=True, zero=True, stringinput=False, dielectric=dielectric, zeff=zeff)
 
-  def load_filelist(self, file_list, add=False, relax_load_freq=None):
+
+  def load_fixedcharge(self, Zdict=None):
+
+    if Zdict is None:
+        self.myphi.use_fixedcharge = False
+        print 'turning OFF fixed charge'
+        return
+
+    self.myphi.load_fixed_charge(Zdict)
+    
+    
+  def load_filelist(self, file_list, add=False, relax_load_freq=None, simpleadd=False):
     #load data from a list of output files
 
     if relax_load_freq is not None:
@@ -275,7 +329,7 @@ class spring_cluster:
     if add == False:
       ncalc_new = self.myphi.load_file_list(files)
     else:
-      ncalc_new = self.myphi.add_to_file_list(files)
+      ncalc_new = self.myphi.add_to_file_list(files, simpleadd=simpleadd)
 
     print '---------'
     print
@@ -294,6 +348,7 @@ class spring_cluster:
     self.dims = dims
     self.cutoffs = {}
     self.bodies = {}
+    self.multifits = {}
     self.cutoff_twobody = {}
     self.dims_hashed = set()
     for d in self.dims:
@@ -319,7 +374,7 @@ class spring_cluster:
     self.limit_xy = {}
     self.dims_have_been_setup = True
 
-  def setup_cutoff(self, dim, cutoff=0.01, body=100, dist_cutoff_twobody=0.0001, limit_xy=False):
+  def setup_cutoff(self, dim, cutoff=0.01, body=100, dist_cutoff_twobody=0.0001, limit_xy=False, multifit=0):
 #set the cutoff for a term in the model    
 
 #    if len(self.dims) == 0:
@@ -338,9 +393,19 @@ class spring_cluster:
       self.cutoffs[dh] = 0.001
       self.bodies[dh] = 100
       self.cutoff_twobody[dh] = 0.001
-      
 
+      if type(multifit) is str:
+        multifit = int(multifit)
+      self.multifits[dh] = multifit
 
+      if multifit != 0:
+        self.usemultifit = True
+        self.myphi.multifit = True
+        self.myphi.lsq.multifit = True
+        print 'turning on multifit', multifit, dh
+        print
+
+        
     self.limit_xy[dh] = limit_xy
 
     if cutoff < -1e-5:
@@ -455,9 +520,11 @@ class spring_cluster:
     self.myphi.UTT0_strain = []    
     self.myphi.UTT0 = []    
     self.myphi.UTT_ss = []    
-    
+    self.myphi.mc_setup = {}
+    self.myphi.dipole_list = []
+    self.myphi.dipole_list_lowmem = {}
 
-  def setup_lsq(self,dim):
+  def setup_lsq(self,dim, order=-99):
     #puts the dependant variables all into the correct places for dimension dim
 
     dh = self.dim_hash(dim)
@@ -470,10 +537,19 @@ class spring_cluster:
     
     if dh in self.Umat and self.myphi.previously_added > 0:
       print 'updating Umat', dh
-      self.Umat[dh] = np.concatenate((self.Umat[dh], Umat), axis=0)
+      if order > 0 and order != dim[1]:
+#        print 'add order', dim, dh
+        self.Umat[dh] = np.concatenate((self.Umat[dh], np.zeros(Umat.shape,dtype=float)), axis=0) #we do not add umat if order doesn't match
+      else:
+        self.Umat[dh] = np.concatenate((self.Umat[dh], Umat), axis=0)
+
+          
     else:
       self.Umat[dh] = Umat
-
+      
+#      print 'GGGGGGG', dim, dh
+#      print Umat
+      
     if ASR is not None and ASR == []:
       self.ASR[dh] = None
     else:
@@ -540,6 +616,11 @@ class spring_cluster:
     rcount = 0
 
     ccount = 0
+
+    mf_all = []
+    mf_fit1 = []
+    mf_fit2 = []
+    
     for d,ra,ca in zip(self.dims, r,c):
 
 
@@ -551,21 +632,42 @@ class spring_cluster:
         ASR_big[rcount:ra+rcount,ccount:ca+ccount] = self.ASR[dh]
 
       UMAT[:,ccount:ca+ccount] = self.Umat[dh] #* factor
+
+      if self.usemultifit:
+        print 'multifit', dh, self.multifits[dh]
+        if self.multifits[dh] == 0:
+          mf_all += range(ccount, ca+ccount)
+        elif self.multifits[dh] == 1:
+          mf_fit1 += range(ccount, ca+ccount)
+        elif self.multifits[dh] == 2:
+          mf_fit2 += range(ccount, ca+ccount)
+
       rcount += ra
 
       ccount += ca
 
+
+    if self.usemultifit:
+      if len(mf_fit1) == 0 or len(mf_fit2) == 0:
+        print 'ERROR configuring multi step fitting procedure ', len(mf_all), len(mf_fit1), len(mf_fit2)
+        self.usemultifit = False
+        self.myphi.usemultifit = True
     ta=time.time()
 
+    if self.usemultifit:
+      mf = [mf_all, mf_fit1, mf_fit2]
+    else:
+      mf = None
 
+    
     #call the actual LSQ solver
     if self.myphi.useasr == True and rtot > 0 and ctot > 0:
-      phi_ind = self.myphi.do_lsq(UMAT, ASR_big)
+      phi_ind = self.myphi.do_lsq(UMAT, ASR_big, multifit = mf)
     else:
       if self.myphi.useasr == True:
         print 'found only trivial ASR, turing off'
         self.myphi.useasr = False
-      phi_ind = self.myphi.do_lsq(UMAT, [])
+      phi_ind = self.myphi.do_lsq(UMAT, [], multifit = mf)
 
     tb = time.time()
 
@@ -577,6 +679,7 @@ class spring_cluster:
     ccount = 0
 
     self.phi_ind_dim = {}
+    self.phi_ind_dim_mf = {}    
 
     for d,ra,ca in zip(self.dims, r,c):
       dh = self.dim_hash(d)
@@ -584,16 +687,71 @@ class spring_cluster:
 
       self.phi_ind_dim[dh] = phi_ind_dim
 
+      if self.usemultifit:
+        if self.multifits[dh] == 1:
+          phi_ind_dim = self.myphi.phi_mf[ccount:ca+ccount]
+          
+#          self.phi_ind_dim[dh] = self.myphi.phi_mf[ccount:ca+ccount]
+#          print 'mf ' , dh, self.phi_ind_dim[dh]
+          
+      
       print 
       print 'phi_ind_dim ', d, dh
+
+
+#      phi_ind_dim[:] = [  -0.009373023773043,\
+#                            10.565687485518938,\
+#                             0.000000006441630,\
+#                            -5.686945252411936,\
+#                             0.002343252722446,\
+#                             0.002343252722446,\
+#                             6.091046762064404,\
+#                            -0.000000006441630,\
+#                            -0.000000006441630,\
+#                             5.686945252411936,\
+#                            -0.002343252722446,\
+#                            -0.002343252722446,\
+#                            -0.002343252722446,\
+#                            -6.091046762064403,\
+#                             0.000000006441630,\
+#                            -5.686945252411936,\
+#                             0.002343252722446,\
+#                             0.002343252722446,\
+#                             6.091046762064403,\
+#                                             0,\
+#                                             0,\
+#                            -0.000000012883259,\
+#                            11.373890504823873,\
+#                            -0.004686505444892,\
+#                           -12.182093524128806                          ]
+      
+      #      if dh != 4:
+#        phi_ind_dim[:] = 0.0
+
+        #        pass
+#        phi_ind_dim[0:11] = 0.0
+#        phi_ind_dim[15:] = 0.0
+#      else:
+#        phi_ind_dim[:] = 0.0
+
       print
       print phi_ind_dim
       print
+ 
       ccount += ca
 
       #this takes the indepentent phi values and reconstructs the full phi matrix
       self.nz[dh], self.phi_nz[dh] = self.myphi.reconstruct_fcs_nonzero_phi_relative(phi_ind_dim, self.ngroups[dh], self.nind[dh],self.trans[dh], d, self.nonzero_list[dh])
 
+    if self.extra_strain:
+      nextra = len(self.myphi.extra_strain_terms)
+      s = phi_ind.shape[0]
+      self.myphi.extra_strain_coeffs = phi_ind[s-nextra:s]
+
+      
+    self.myphi.setup_mc = {} #need to remake any monte carlo data with new params
+  
+      
   def do_apply_sym(self):
     print 'Figure out symmetry operations (but do not do fitting now, do it later)'
     print '------------------------------'
@@ -619,13 +777,15 @@ class spring_cluster:
           print TIME[t+1] - TIME[t]
         print 'tttt'
 
-  def do_all_fitting(self):
+  def do_all_fitting(self, order=-99):
 
     #this function runs several other functions in the correct order to fit the model
     #first does symmetry analysis (if not done already)
     #then does the fitting
     #then puts the results in a usable form
 
+    #order is used internally, and should not be set by user
+    
     print '------------------------'
     print 'STARTING FITTING PROCESS'
     print
@@ -666,7 +826,7 @@ class spring_cluster:
 
       TIME.append(time.time())
 #      print 'done apply_sym for '+ str(d)
-      self.setup_lsq(d)
+      self.setup_lsq(d, order=order)
       print 'done setup_lsq for '+ str(d)
       print
       TIME.append(time.time())
@@ -677,6 +837,7 @@ class spring_cluster:
         print ['Setup_lsq ', TIME[2] - TIME[1]]
         print '---'
                 
+    sys.stdout.flush()
 
     print
     print 'Doing actual lsq fitting now'
@@ -687,22 +848,47 @@ class spring_cluster:
     if self.verbosity == 'High' or self.myphi.verbosity == 'High':
       print 'LSQ Timing (not accurate for multiple processors) '+ str(time2-time1)
 
+
+    if self.do_repair:
+      print 'DOING INSTABILITY REPAIR'
+      self.repair_instability(cell=self.repaircell)
+      
     print 
     print 'DONE FITTING'
     print '------------------------'
     self.fitted = True
 
+    
 
 
-
-
-  def write_harmonic(self, filename, dontwrite=False):
+  def write_harmonic(self, filename, spin_config=None, dontwrite=False):
     #outputs the harmonic force constants in QE format
     if not 2 in self.dims_hashed:
       print 'error, have to fit harmonic FCs before writing!'
       return ''
     else:
-      string = self.myphi.write_harmonic_qe(filename, self.phi_nz[2],self.nz[2], self.supercell, dontwrite=dontwrite)
+      
+      nonzero1=None
+      nonzero2=None
+
+      phi1 = None
+      phi2 = None
+
+      if  not(spin_config is None):
+        
+
+        d12 = self.dim_hash([1,2])
+        d22 = self.dim_hash([2,2])
+
+        if d12 in self.dims_hashed:
+          nonzero1 = self.nz[d12]
+          phi1 = self.phi_nz[d12]
+        if  d22 in self.dims_hashed:
+          nonzero2 = self.nz[d22]
+          phi2 = self.phi_nz[d22]
+
+
+      string = self.myphi.write_harmonic_qe(filename, self.phi_nz[2],self.nz[2], self.supercell, dontwrite=dontwrite, spin_config=spin_config, nonzero1=nonzero1, phi1=phi1, nonzero2=nonzero2, phi2=phi2)
 #      string = self.myphi.write_harmonic_qe(filename, self.phi_nz[2],self.nz[2], [1,1,3], dontwrite=dontwrite)
       return string
 
@@ -721,38 +907,118 @@ class spring_cluster:
     return cubic 
 
 
-  def write_dim(self,filename, dim):
+  def write_dim(self,filename, dim, spin_config=None):
     if len(dim) == 2:
       dim = self.dim_hash(dim)
 
     if dim == 2:
-      self.write_harmonic(filename)
+      self.write_harmonic(filename, spin_config=spin_config)
     elif dim == 3:
       self.write_cubic(filename)
     else:
       print 'error, writing dims > 3 not implemented'
 
-  def calc_energy(self,A,pos,types, cell=[]):
+
+  def calc_energy_u(self,A,pos,types, cell=[], order=-99, fraction=-1):
+
+    if cell == []:
+      cell = self.myphi.find_best_fit_cell(A)
+    elif type(cell) is list and len(cell) == 3:
+      cell = np.diag(cell)
+    elif len(cell.shape) == 1:
+      cell = np.diag(cell)
+    
+      if cell[0,1] != 0 or cell[0,2] != 0 or cell[1,0] != 0 or cell[2,0] != 0 or cell[1,2] != 0  or cell[2,1] != 0 or  cell[0,0] <  self.unfold_number or cell[1,1] <  self.unfold_number or cell[2,2] <  self.unfold_number:
+        A,types,pos,forces_ref, stress_ref, energy_ref, cell, refA, refpos,bf = self.myphi.unfold(A, types, pos, cell)
+
+    bestfitcell=np.diag(cell)
+    refA = np.zeros((3,3),dtype=float)
+    refA[0,:] = self.myphi.Acell[0,:]*bestfitcell[0]
+    refA[1,:] = self.myphi.Acell[1,:]*bestfitcell[1]
+    refA[2,:] = self.myphi.Acell[2,:]*bestfitcell[2]
+    A, strain, rotmat, forces_ref, stress_ref = self.myphi.get_rot_strain(A, refA)
+
+#    print 'calc_energy_u A'
+#    print A
+#    print 'bestfitcell_u',bestfitcell
+    
+    
+#    return self.calc_energy(A,pos,types, cell=np.diag(bestfitcell), order=order,fraction=fraction)
+    return self.calc_energy_fast(A,pos,types, cell=bestfitcell)
+  
+
+
+  
+  def calc_energy(self,A,pos,types, cell=[], order=-99, fraction=-1):
     #calculate the energy, given a cell, positions, and atom types.
     #cell is an optional specification of the supercell
+
+    if fraction < 0:
+      fraction=self.fraction
+
+#    print 'calc_energy fraction =', fraction, order
+      
     self.vacancy_param = 0.0
+
+
     
+#    print 'calc_energy types', types
 
     #put the model in a format that calc_energy can understand
     phis = []
     dcuts = []
     nzs = []
-    for d in self.dims:
-      dh = self.dim_hash(d)
-#      phis.append(np.array(self.phi_nz[dh],dtype=float,order='F'))
-      phis.append(self.phi_nz[dh])#,dtype=float,order='F')
-      dcuts.append(self.cutoffs[dh])
-      nzs.append(self.nz[dh])
 
+#    print 'calc_energy order', order
+    dsr = []
+    for d in self.dims:
+
+      if (order > -99 and abs(d[1]) == order) or order == -99:
+          dh = self.dim_hash(d)
+          if self.usemultifit:
+            if self.multifits[dh] == 1:
+              phis.append(np.array(self.phi_nz[dh]) * fraction)#,dtype=float,order='F')
+#              print 'dh1 ', d, dh, fraction, self.multifits[dh], np.array(self.phi_nz[dh]) * fraction,self.phi_nz[dh]
+            elif self.usemultifit and self.multifits[dh] == 2:
+              phis.append(np.array(self.phi_nz[dh]) * (1.0-fraction))#,dtype=float,order='F')            
+#              print 'dh2 ', d, dh, (1.0-fraction), self.multifits[dh]
+            elif self.multifits[dh] == 0:
+              phis.append(self.phi_nz[dh])
+#              print 'dh0 ', d, dh, 1.0, self.multifits[dh]            
+            dcuts.append(self.cutoffs[dh])
+            nzs.append(self.nz[dh])
+            dsr.append(d)
+          else:
+            dh = self.dim_hash(d)
+            phis.append(self.phi_nz[dh])#,dtype=float,order='F')
+            dcuts.append(self.cutoffs[dh])
+            nzs.append(self.nz[dh])
+            dsr.append(d)          
+
+#    print 'len phis', len(phis), dsr
+    
     TIME = time.time()
     #do the energy calculation
-    energy, forces, stress = self.myphi.calculate_energy_force_stress(A,pos,types,self.dims,[], phis, nzs, cell)
 
+    if order > 0:
+      shortrangeonly_only=True
+    else:
+      shortrangeonly_only=False
+ #   print 'shortrangeonly_only',shortrangeonly_only
+
+
+    if len(cell.shape) == 2:
+      cell = np.diag(cell)
+
+    print 'before slow calculate_energy_force_stress'
+    sys.stdout.flush()
+    
+    energy, forces, stress = self.myphi.calculate_energy_force_stress(A,pos,types,dsr,[], phis, nzs, cell=cell, shortrangeonly_only=shortrangeonly_only)
+
+    print 'after slow calculate_energy_force_stress'
+    sys.stdout.flush()
+
+    
     #if the energy calculation changed the supercell away from the reference supercell, we have to fix it.
     if not np.array_equal(self.supercell,self.myphi.supercell):
       self.myphi.set_supercell(self.supercell)
@@ -762,7 +1028,7 @@ class spring_cluster:
 
     return energy, forces, stress
 
-  def run_mc_test(self,A,pos,types,cell=[] ):
+  def run_mc_test(self,A,pos,types,cell=[]):
     #for testing the MC code. Calculates the starting energy using the MC routine for enegy,
     #then exits the MC code
 
@@ -794,7 +1060,30 @@ class spring_cluster:
 
     return starting_energy
 
-  def run_mc(self,A,pos,types, steps, temperature, chem_pot, step_size, use_all = [True, False, False],report_freq=10, cell=[], runaway_energy=-3.0, verbosity='minimal'):
+
+  def calc_energy_fast(self,A,pos,types, cell=[],chem_pot=0.0, correspond=None):
+
+
+    if type(cell) is np.ndarray:
+      if len(cell.shape) == 2:
+        cell = np.diag(cell)
+    
+    phis = []
+    dcuts = []
+    nzs = []
+
+    for d in self.dims:
+
+      dh = self.dim_hash(d)
+      phis.append(self.phi_nz[dh])
+      dcuts.append(self.cutoffs[dh])
+      nzs.append(self.nz[dh])
+
+
+    return self.myphi.run_mc_efs(A,pos,types,self.dims, phis, dcuts, nzs, chem_pot, cell, correspond)
+
+  
+  def run_mc(self,A,pos,types, steps, temperature, chem_pot, step_size=[0.02, 0.002], use_all = [True, False, False],report_freq=10, cell=[], runaway_energy=-20.0, verbosity='minimal', stag_dir='111', neb_mode=False, vmax=1.0, smax = 0.07):
 
     #this runs the montecarlo sampling. the real work is done in another file. this just sets things but and runs
     #some basic analysis afterwards. it is up to the user to understand MC sampling.
@@ -849,7 +1138,12 @@ class spring_cluster:
     print 'Change cluster:         ' + str(use_all[2])
     print
 
-    energies, struct_all, strain_all, cluster_all, step_size, outstr = self.myphi.run_montecarlo(A,pos,types,self.dims, phis, dcuts, nzs, steps, temperature, chem_pot, report_freq, step_size, use_all, cell=cell, runaway_energy=runaway_energy)
+    kbT = (self.myphi.boltz * temperature ) #boltz constant in Ryd / T
+    beta = 1.0/kbT
+    
+    print "beta (inv ryd) ", beta
+
+    energies, struct_all, strain_all, cluster_all, step_size, outstr, A, pos, types, unstable = self.myphi.run_montecarlo(A,pos,types,self.dims, phis, dcuts, nzs, steps, temperature, chem_pot, report_freq, step_size, use_all, cell=cell, runaway_energy=runaway_energy, stag_dir=stag_dir, neb_mode=neb_mode, vmax=vmax, smax=smax)
     print 'DONE MONTE CARLO'
 
     #energies, struct_all, strain_all have all the information saved from the MC calculation
@@ -857,7 +1151,7 @@ class spring_cluster:
     #outstr has the structural information of either the final step or the step before the energy went crazy
     #it is intended primarily to help creating new unit cells from the results of the MC calculation to improve the model
 
-    return energies, struct_all, strain_all, cluster_all, step_size, outstr
+    return energies, struct_all, strain_all, cluster_all, step_size, outstr, A, pos, types, unstable
 
 
   def calc_energy_qe_file(self,filename,cell=[],ref=None):
@@ -868,12 +1162,17 @@ class spring_cluster:
 
       return energy,forces, stress, energy_ref, forces_ref, stress_ref
 
-  def calc_energy_qe_output(self,A,types,pos,forces_ref,stress_ref,energy_ref,cell=[],ref=None):
+  def calc_energy_qe_output(self,A,types,pos,forces_ref,stress_ref,energy_ref,cell=[],ref=None,filename=''):
 
     #loads info from output file, calculates energy
 
     self.vacancy_param = 0.0
-    
+
+    print "calc_energy_qe_output, ", A
+    print A
+    print
+
+    print 'energy_ref calc_energy_qe_output', energy_ref
 
     if not(isinstance(energy_ref, int) or isinstance(energy_ref, float)) or abs(energy_ref - -99999999) < 1e-5:
 #      print 'Failed to load '+str(filename)+', attempting to continue'
@@ -896,21 +1195,39 @@ class spring_cluster:
     else:
       bestfitcell = self.myphi.find_best_fit_cell(A)
 
-    if self.verbosity == 'High':
-      print 'best fit cell'
-      print bestfitcell
-      print 'reference supercell ' + str(self.supercell)
+      #    if self.verbosity == 'High':
+    print 'best fit cell'
+    print bestfitcell
+    print 'reference supercell ' + str(self.supercell)
 
 
-#    print 'before unfold'  
-    A,types,pos,forces_ref, stress_ref, energy_ref, bestfitcell, refA, refpos, bf = self.myphi.unfold(A, types, pos, bestfitcell, forces_ref, stress_ref, energy_ref)
-    bestfitcell=np.diag(bestfitcell)
+      #    print 'before unfold'  
 
-#    print 'bestfitcell after unfold'
-#    print bestfitcell
+    if bestfitcell[0,1] != 0 or bestfitcell[0,2] != 0 or bestfitcell[1,0] != 0 or bestfitcell[2,0] != 0 or bestfitcell[1,2] != 0  or bestfitcell[2,1] != 0 or len(cell) == 3 or  bestfitcell[0,0] <  self.unfold_number or bestfitcell[1,1] <  self.unfold_number or bestfitcell[2,2] <  self.unfold_number:
+      A,types,pos,forces_ref, stress_ref, energy_ref, bestfitcell, refA, refpos, bf = self.myphi.unfold(A, types, pos, bestfitcell, forces_ref, stress_ref, energy_ref)
+
+#    print 'energy_ref calc_energy_qe_output after unfold', energy_ref
+
+    print "calc_energy_qe_output, after unfold ", A
+    print A
+    print
+
+    bestfitcell = np.array(bestfitcell)
+    if len(bestfitcell.shape) == 2:
+      bestfitcell=np.diag(bestfitcell)
+      
+    refA = np.zeros((3,3),dtype=float)
+    refA[0,:] = self.myphi.Acell[0,:]*bestfitcell[0]
+    refA[1,:] = self.myphi.Acell[1,:]*bestfitcell[1]
+    refA[2,:] = self.myphi.Acell[2,:]*bestfitcell[2]
     
     A, strain, rotmat, forces_ref, stress_ref = self.myphi.get_rot_strain( A, refA, forces_ref, stress_ref)
 
+    print "calc_energy_qe_output, after get_rot_strain ", A
+    print A
+    print
+
+    
     ntypes = 0.0
     for t in types:
 #      print t
@@ -918,7 +1235,7 @@ class spring_cluster:
         ntypes += self.myphi.types_dict[t]
 
     if self.myphi.vacancy != 1:
-      ntypes += abs(np.linalg.det(bestfitcell)) * self.myphi.nat - pos.shape[0]  #for doping
+      ntypes += abs(np.prod(bestfitcell)) * self.myphi.nat - pos.shape[0]  #for doping
 
 
     energy_doping = self.myphi.doping_energy * ntypes
@@ -929,10 +1246,35 @@ class spring_cluster:
 
 
 ##########    energy_ref = energy_ref -  self.myphi.energy_ref    #* pos.shape[0] / self.myphi.nat
-    energy_ref = energy_ref -  self.myphi.energy_ref * abs(np.linalg.det(bestfitcell))
 
-    energy, forces, stress = self.calc_energy(A, pos, types, np.diag(bestfitcell))
+    if (len(np.array(bestfitcell).shape) == 2):
+      energy_ref = energy_ref   -  self.myphi.energy_ref * abs(np.linalg.det(bestfitcell))
+      print 'energy_ref calc_energy_qe_output return A ', energy_ref, abs(np.prod(bestfitcell)), bestfitcell
+      
+    else:
+      energy_ref = energy_ref   -  self.myphi.energy_ref * abs(np.prod(bestfitcell))
+    
+      print 'energy_ref calc_energy_qe_output return B ', energy_ref, abs(np.prod(bestfitcell)), bestfitcell
 
+    print 'FAST'
+    sys.stdout.flush()
+    
+    energy, forces, stress, energies = self.calc_energy_fast(A, pos, types, bestfitcell)
+
+    print 'ENDFAST'
+    sys.stdout.flush()
+
+    
+##    energy_slow, forces_slow, stress_slow = self.calc_energy(A, pos, types, bestfitcell)
+##
+#    print ['FASTSLOW', energy,energy_slow, energy-energy_slow]
+ #   print forces-forces_slow
+#    print
+#    print stress-stress_slow
+#    print
+#    print 'forces_slow'
+#    print forces_slow
+#    
     nat=forces.shape[0]
 
     if nat > forces_ref.shape[0]:#pad with zeros due to vacancies
@@ -940,7 +1282,13 @@ class spring_cluster:
       forces_ref2[0:forces_ref.shape[0], :] = forces_ref[:,:]
       forces_ref = forces_ref2
 
+
+#    if True:
+#      output_qe_style(filename+'.fake', pos,types, A, forces,energy, stress)
     
+
+#    print 'energy_ref calc_energy_qe_output return ', energy_ref
+
 
     return energy,forces, stress, energy_ref-energy_doping, forces_ref, stress_ref
 
@@ -969,6 +1317,10 @@ class spring_cluster:
     dFtot = 0.0
     Eref  = 0.0
     Fref  = 0.0
+
+    dStot  = 0.0
+    Sref  = 0.0
+
     N = 0
     print
     print '---------------------------------'
@@ -1006,7 +1358,7 @@ class spring_cluster:
       print str(N) + ' Calculating energy for ' ,ls
 
       correction = 0.0
-      if len(ls) == 3:
+      if len(ls) == 3 or len(ls) == 6:
         ref = ls[1]
         A1,types1,pos1,forces1,stress1,energy1 = load_output(ref)
         correction = energy1 - self.myphi.energy_ref * pos1.shape[0] / self.myphi.nat 
@@ -1021,9 +1373,23 @@ class spring_cluster:
 #      print ls
 
       bestfitcell_input = []
+      bestfitcell_input_float = []
       if len(ls) == 5:
+#        bestfitcell_input = map(int,ls[2:5])
+#        bestfitcell_input = ls[2:5]
+
+        bestfitcell_input_float = map(float, ls[2:5])
         bestfitcell_input = map(int,ls[2:5])
-        print 'bestfitcell_input (calc_energy_qe_output_list): ', bestfitcell_input
+
+      if len(ls) == 6:
+#        bestfitcell_input = map(int,ls[2:5])
+#        bestfitcell_input = ls[2:5]
+
+        bestfitcell_input_float = map(float, ls[3:6])
+        bestfitcell_input = map(int,ls[3:6])
+
+        
+        print 'bestfitcell_input (calc_energy_qe_output_list): ', bestfitcell_input, bestfitcell_input_float
         
 #    A,types,pos,forces_ref,stress_ref,energy_ref = load_output(filename)
       filename=ls[0]
@@ -1035,30 +1401,62 @@ class spring_cluster:
 
         N += 1
 
-        energy,forces, stress, energy_ref, forces_ref, stress_ref = self.calc_energy_qe_output(A,types,pos,forces,stress,energy_ref, cell=bestfitcell_input, ref=ref)
+        if len(bestfitcell_input_float) > 0:
+          if bestfitcell_input_float[0] < 0.9999 or bestfitcell_input_float[1] < 0.9999 or bestfitcell_input_float[2] < 0.9999 :
+            A,types,pos,forces,stress,energy_ref, factor = self.myphi.unfold_to_supercell(A, pos,types, forces, stress, energy_ref, cell=bestfitcell_input_float)        
 
+            bestfitcell_input = []
+            for i in range(3):
+              bestfitcell_input.append(int(bestfitcell_input_float[i]*factor[i]))
+            
+
+              #        else:
+#          bestfitcell_input = map(int,ls[2:5])
+          
+        energy,forces, stress, energy_ref, forces_ref, stress_ref = self.calc_energy_qe_output(A,types,pos,forces,stress,energy_ref, cell=bestfitcell_input, ref=ref,filename=filename)
+
+        print "after self.calc_energy_qe_output"
+        sys.stdout.flush()
+        
+        
         if not(isinstance(energy_ref, int) or isinstance(energy_ref, float)) or abs(energy_ref - -99999999) < 1e-5:
 
           print 'ERROR, Failed to load '+str(ls[0])+', number ', c, ', attempting to continue'
           N -= 1
           continue
 
+        print 'energy_ref before correction', energy_ref, correction, np.array(forces).shape[0] / pos.shape[0]
+        
         energy_ref = energy_ref - correction * np.array(forces).shape[0] / pos.shape[0]
 
+        print 'energy_ref correction', energy_ref, correction, np.array(forces).shape[0] / pos.shape[0]
+        
         nat = forces.shape[0]
         print
-        print 'Energy ' + str(energy) + '\t' + str(energy_ref) + '\t' + str(energy-(energy_ref)) + '\t \t' + str(filename) + ' ' + str(c)
-        print 'F abs ' + str(np.sum(np.sum(abs(forces_ref - forces)))/(nat*3.0)) + ' ' + str(np.sum(np.sum(abs(forces_ref )))/(nat*3.0)) + '\t \t' + str(filename)+ ' ' + str(c)
-        print 'F max abs ' + str(np.max(np.max(abs(forces_ref - forces)))) + ' ' + str(np.max(np.max(abs(forces_ref )))) + '\t \t' + str(filename)+ ' ' + str(c)
-        print 'S abs ' + str(np.sum(np.sum(abs(stress_ref - stress)))) + ' ' + str(np.sum(np.sum(abs(stress_ref)))) + '\t \t' + str(filename)+ ' ' + str(c)
+
+        #        print 'Energy ' + str(energy) + '\t' + str(energy_ref) + '\t' + str(energy-(energy_ref)) + '\t \t' + str(filename) + ' ' + str(c)
+        print(('Energy %12.8f  %12.8f   %12.8f  '+filename)  %(energy, energy_ref, energy-energy_ref) )
+        print(('en_meV/atom %12.8f  %12.8f   %12.8f  '+filename)  %(13.6057*1000*energy/float(forces.shape[0]), 13.6057*1000*energy_ref/float(forces.shape[0]), 13.6057*1000*(energy-energy_ref)/float(forces.shape[0])) )        
+
+#        print 'F abs ' + str(np.sum(np.sum(abs(forces_ref - forces)))/(nat*3.0)) + ' ' + str(np.sum(np.sum(abs(forces_ref )))/(nat*3.0)) + '\t \t' + str(filename)+ ' ' + str(c)
+        print(('F abs %12.8f  %12.8f  '+filename+'  %i') % (np.sum(np.sum(abs(forces_ref - forces)))/(3.0*nat), np.sum(np.sum(abs(forces_ref )))/(3.0*nat), c  ))
+
+        #        print 'F max abs ' + str(np.max(np.max(abs(forces_ref - forces)))) + ' ' + str(np.max(np.max(abs(forces_ref )))) + '\t \t' + str(filename)+ ' ' + str(c)
+        print(('F max abs %12.8f  %12.8f  '+filename+'  %i') % (np.max(np.max(abs(forces_ref - forces))), np.max(np.max(abs(forces_ref ))), c))
+#        print 'S abs ' + str(np.sum(np.sum(abs(stress_ref - stress)))) + ' ' + str(np.sum(np.sum(abs(stress_ref)))) + '\t \t' + str(filename)+ ' ' + str(c)
+        print(('S abs %12.8f  %12.8f  '+filename+'  %i') % (np.mean(np.mean(abs(stress_ref - stress))), np.mean(np.mean(abs(stress_ref ))), c))
+        print(('S max abs %12.8f  %12.8f  '+filename+'  %i') % (np.max(np.max(abs(stress_ref - stress))), np.max(np.max(abs(stress_ref ))), c))
 
 
 
-        dEtot += abs(energy - energy_ref)
-        Eref  += abs(energy_ref)
+        dEtot += abs(energy - energy_ref)/ float(forces.shape[0])
+        Eref  += abs(energy_ref)/ float(forces.shape[0])
         dFtot += np.sum(np.sum(np.abs(forces-forces_ref))) / (3*forces.shape[0])
         Fref  += np.sum(np.sum(np.abs(forces_ref))) / (3*forces.shape[0])
+        dStot += np.sum(np.sum(abs(stress_ref - stress)))
+        Sref += np.sum(np.sum(abs(stress_ref)))
 
+        
         FORCES.append(forces)
         ENERGIES.append(energy)
         STRESSES.append(stress)
@@ -1086,14 +1484,22 @@ class spring_cluster:
         print stress
         print
 
-        if False:#for testing
+        print "after iteration"
+        sys.stdout.flush()
+
+        
+#        if False:#for testing
 #        if True:
-          output_qe_style(filename, pos, A, forces,energy, stress)
+#          A,types,pos,_,_,_,_ = self.myphi.unfold_to_supercell(A, pos,types, forces[0:pos.shape[0],:], stress, energy_ref, cell=bestfitcell_input_float)        
+#          output_qe_style(filename+'.fake', pos,types, A, forces,energy, stress)
 
     print
     print 'N', N
-    print 'Energy average Deviation ' + str(dEtot / N) + '\t' + str(Eref / N)
-    print 'Forces average Deviation ' + str(dFtot / N) + '\t' + str(Fref / N)
+    if N > 0:
+      print 'Energy average Deviation ' + str(dEtot / N) + '\t' + str(Eref / N) + ' per atom'
+      print 'en_meV average Deviation ' + str(13.6057*1000*dEtot / N) + '\t' + str(13.6057*1000*Eref / N) + ' meV/atom'      
+      print 'Forces average Deviation ' + str(dFtot / N) + '\t' + str(Fref / N)
+      print 'Stress average Deviation ' + str(dStot / N) + '\t' + str(Sref / N)
 
     sys.stdout.flush()
 
@@ -1102,7 +1508,11 @@ class spring_cluster:
 
   def calc_energy_qe_input_list(self,filename):
   
-    f = open(filename, 'r')
+    if type(filename) is str:
+      f = open(filename, 'r')
+    else:
+      f = filename
+      
     ENERGY = []
     FORCES = []
     STRESS = []
@@ -1114,7 +1524,10 @@ class spring_cluster:
     N = 0
     print
     print '---------------------------------'
-    print 'STARTING ENERGY CALCULATIONS FROM: ' + filename
+    if type(filename) is str:
+      print 'STARTING ENERGY CALCULATIONS FROM: ' + filename
+    else:
+      print 'STARTING ENERGY CALCULATIONS from input list'      
     FORCES = []
     ENERGIES = []
     STRESSES = []
@@ -1146,11 +1559,16 @@ class spring_cluster:
       if len(ls) == 5:
         bestfitcell_input = map(int,ls[2:5])
         print 'bestfitcell_input (calc_energy_qe_output_list): ', bestfitcell_input
+      if len(ls) == 6:
+        bestfitcell_input = map(int,ls[3:6])
+        print 'bestfitcell_input (calc_energy_qe_output_list): ', bestfitcell_input
         
       energy,forces, stress = self.calc_energy_qe_input(ls[0], cell=bestfitcell_input, ref=ref)
 
 
-
+    if type(filename) is str:
+      f.close()
+      
     sys.stdout.flush()
 
     return ENERGIES,FORCES, STRESSES
@@ -1191,25 +1609,40 @@ class spring_cluster:
     else:
       bestfitcell = self.myphi.find_best_fit_cell(A)
 
-    if self.verbosity == 'High':
-      print 'best fit cell'
-      print bestfitcell
+#    if self.verbosity == 'High':
 
+    print 'best fit cell before'
+    print bestfitcell
 
-    A,types,pos,forces_ref, stress_ref, energy_ref, bestfitcell, refA, refpos,bf = self.myphi.unfold(A, types, pos, bestfitcell)
+    if bestfitcell[0,1] != 0 or bestfitcell[0,2] != 0 or bestfitcell[1,0] != 0 or bestfitcell[2,0] != 0 or bestfitcell[1,2] != 0  or bestfitcell[2,1] != 0 or  bestfitcell[0,0] <  self.unfold_number or bestfitcell[1,1] <  self.unfold_number or bestfitcell[2,2] <  self.unfold_number:
+      A,types,pos,forces_ref, stress_ref, energy_ref, bestfitcell, refA, refpos,bf = self.myphi.unfold(A, types, pos, bestfitcell)
+      
     bestfitcell=np.diag(bestfitcell)
 
+    print 'best fit cell after unfold'
+    print bestfitcell
+#    sys.stdout.flush()
 
-
+    refA = np.zeros((3,3),dtype=float)
+    refA[0,:] = self.myphi.Acell[0,:]*bestfitcell[0]
+    refA[1,:] = self.myphi.Acell[1,:]*bestfitcell[1]
+    refA[2,:] = self.myphi.Acell[2,:]*bestfitcell[2]
 
     A, strain, rotmat, forces_ref, stress_ref = self.myphi.get_rot_strain(A, refA)
 
-    energy, forces, stress = self.calc_energy(A, pos, types, np.diag(bestfitcell))
+#    energy, forces, stress = self.calc_energy(A, pos, types, np.diag(bestfitcell))
+    energy, forces, stress, energies = self.calc_energy_fast(A, pos, types, bestfitcell)
 
     
     print
     print 'Energy ' + str(energy) 
-
+    print
+    print 'Forces'
+    print forces
+    print
+    print 'Stress'
+    print stress
+    print
     
     return energy,forces, stress
 
@@ -1272,7 +1705,7 @@ class spring_cluster:
     if show:
       plt.show()
 
-  def Fvib_freq(self,qpoints, T):
+  def Fvib_freq(self,qpoints, T, spin_config=None):
     #calculates vibrational free energy at a temperature
     #using the formulat based on frequency, not DOS
     
@@ -1284,7 +1717,7 @@ class spring_cluster:
       print 'error, need to fit harmonic spring constants'
     elif self.fitted == False:
       print 'error, need to do the fitting'
-    harmonicstring = self.write_harmonic('t', dontwrite=True)
+    harmonicstring = self.write_harmonic('t', dontwrite=True, spin_config=spin_config)
     self.myphi.load_harmonic_new(harmonicstring, False, zero=False, stringinput=True)
 
     if not hasattr(qpoints, "__len__"): #something with len
@@ -1361,7 +1794,7 @@ class spring_cluster:
 
     return Fvib
 
-  def dos(self,qpoints,  T=10, nsteps=400, filename='dos.csv', filename_plt='dos.pdf',show=False):
+  def dos(self,qpoints,  T=10, nsteps=400, filename='dos.csv', filename_plt='dos.pdf',show=False, spin_config=None):
     #plots the density of states.  if q is a scalar, density is qxqxq. otherwise 
     #use set of [q1, q2, q3]. nsteps is the number of energy intervals,  filename is output, show outputs to screen
 
@@ -1374,7 +1807,7 @@ class spring_cluster:
 
 
 #need to send harmonic info to dynmat code
-    harmonicstring = self.write_harmonic('t', dontwrite=True)
+    harmonicstring = self.write_harmonic('t', dontwrite=True, spin_config=spin_config)
     self.myphi.load_harmonic_new(harmonicstring, False, zero=False, stringinput=True)
 
     if not hasattr(qpoints, "__len__"): #something with len
@@ -1399,29 +1832,93 @@ class spring_cluster:
 
     return DOS
 
-  def phonon_band_structure(self,qpoints, nsteps=20, filename='bandstruct.csv', filename_plt='bandstruct.pdf',show=False):
-    #qpoints has name and then point of each qpoint, in inv crystal units
 
-    #like this: [['G',[0,0,0]], ['X', [0.5, 0, 0]]]
+  def add_magnetic_anisotropy(self,val):
 
-    if not 2 in self.dims_hashed:
-      print 'error, need to fit harmonic spring constants'
-    elif self.fitted == False:
-      print 'error, need to do the fitting'
+    self.myphi.magnetic_anisotropy = val
+    print 'magnetic_anisotropy', val
+
+    
+  def magnon_band_structure(self,spin_config, qpoints, nsteps=20, filename='magnon.csv', filename_plt='magnon.pdf',show=False, units='meV'):
+
+    
+    names, numbers, qpoints_mat = self.get_qpoints(qpoints, nsteps=nsteps)
+
+    if self.myphi.magnetic == 1 or self.myphi.magnetic == 2:
+      if [2,0] in self.dims:
+        dh=self.dim_hash([2,0])
+        phi = self.phi_nz[dh]
+        nz = self.nz[dh]
+      else:
+        print 'error magnon_band_structure, wrong calculation type'
+        return 1
+      
+      freq = self.myphi.solve_magnons(qpoints_mat, spin_config, phi, nz, units=units)
+
+    else:
+      print 'error magnon'
+      return 1
+    
+    plt.clf()
+    
+    fig, ax = plt.subplots()
+    plt.plot(freq, 'b')
+    
+    x1,x2,y1,y2 = plt.axis()
+
+    
+    ax.set_xlim([numbers[0],numbers[-1]])
+
+    themin = min(np.min(np.min(freq)), 0)
+    themax = np.max(np.max(freq))
+    d = (themax-themin) * 0.05
+    ax.set_ylim([min(-1e-5,themin-abs(themin)*.01) ,themax*1.05])
+    for n,num in zip(names, numbers):
+      plt.text(num-0.25, themin-d, n)
+      plt.plot([num, num],[min(-1e-5,themin-abs(themin)*.01),themax*1.05], 'k')
+
+    ax.set_xticklabels([])
+    ax.set_xticks([])
+    plt.xlabel('Wave Vector', labelpad=20)
+    if units=='meV':
+      plt.ylabel('Energy (meV)')
+    else:
+      plt.ylabel('Energy (a.u.)')      
+      
+    np.savetxt(filename, freq)
+    np.savetxt(filename+'.qpts', qpoints_mat)
+#    plt.tight_layout()
+    plt.savefig(filename_plt)
+    if show:
+      plt.show()
+      
+    
 
 
-#need to send harmonic info to dynmat code
-
-    harmonicstring = self.write_harmonic('t', dontwrite=True)
-    self.myphi.load_harmonic_new(harmonicstring, False, zero=False, stringinput=True)
-
+  def get_qpoints(self, qpoints, nsteps=20):
 
     names = []
     numbers = []
 
     qmax = len(qpoints)
     steps = 0
-    qpoints_mat = np.zeros(((qmax-1) * nsteps - (qmax-2),3), dtype=float)
+
+    ST = []
+    for q in qpoints[:-1]:
+      if len(q) == 3:
+        ST.append(q[2])
+      else:
+        ST.append(nsteps)
+    nsteps = np.sum(ST)
+    
+    
+#    qpoints_mat = np.zeros(((qmax-1) * nsteps - (qmax-2),3), dtype=float)
+    qpoints_mat = np.zeros( ( nsteps - (qmax-2),3), dtype=float)
+
+    print "nsteps ", nsteps
+    print "qmax ", qmax
+    print "qpoints_mat.shape", np.shape(qpoints_mat)
+
     current = 0
     
     if self.verbosity == 'High':
@@ -1433,18 +1930,18 @@ class spring_cluster:
       names.append(qpoints[nq][0])
       if nq == 0:
         numbers.append(0)
-        steps += nsteps
+        steps += ST[0]
       elif nq+1 < qmax:
         numbers.append(steps-1)
-        steps += nsteps-1
+        steps += ST[nq]-1
       else:
         numbers.append(steps-1)
         steps += nsteps
 
-
+      
       if nq+2 < qmax:
-
-
+        nsteps = ST[nq]
+        print 'qqqq',qpoints[nq], qpoints[nq+1], nsteps
         x = np.linspace(qpoints[nq][1][0],  qpoints[nq+1][1][0],nsteps)
         y = np.linspace(qpoints[nq][1][1],  qpoints[nq+1][1][1],nsteps)
         z = np.linspace(qpoints[nq][1][2],  qpoints[nq+1][1][2],nsteps)
@@ -1456,7 +1953,7 @@ class spring_cluster:
         current += nsteps-1
 
       elif nq+2 == qmax:
-
+        nsteps = ST[nq]
         x = np.linspace(qpoints[nq][1][0],  qpoints[nq+1][1][0],nsteps)
         y = np.linspace(qpoints[nq][1][1],  qpoints[nq+1][1][1],nsteps)
         z = np.linspace(qpoints[nq][1][2],  qpoints[nq+1][1][2],nsteps)
@@ -1467,17 +1964,55 @@ class spring_cluster:
 
         current += nsteps
 
+    return names, numbers, qpoints_mat
+  
+  def phonon_band_structure(self,qpoints, nsteps=20, filename='bandstruct.csv', filename_plt='bandstruct.pdf',show=False, spin_config=None):
+    #qpoints has name and then point of each qpoint, in inv crystal units
 
+    #like this: [['G',[0,0,0]], ['X', [0.5, 0, 0]]]
+
+    if self.myphi.model_zeff == True:
+      zlist = []
+      for n in range(self.myphi.nat):
+        zlist.append(self.myphi.zeff_dict[(n,0)])
+      zold = copy.copy(self.myphi.dyn.zstar )
+      self.myphi.dyn.zstar = zlist
+      
+    if not 2 in self.dims_hashed:
+      print 'error, need to fit harmonic spring constants'
+    elif self.fitted == False:
+      print 'error, need to do the fitting'
+
+
+#need to send harmonic info to dynmat code
+
+    harmonicstring = self.write_harmonic('t', dontwrite=True, spin_config=spin_config)
+    self.myphi.load_harmonic_new(harmonicstring, False, zero=False, stringinput=True)
+
+
+    names, numbers, qpoints_mat = self.get_qpoints(qpoints, nsteps=nsteps)
+        
     freq  = self.myphi.dyn.solve(qpoints_mat, False)
-    
+
+    if self.myphi.model_zeff == True:
+      self.myphi.dyn.zstar = zold
+                     
+                     
     plt.clf()
     
     fig, ax = plt.subplots()
-    plt.plot(freq)
+    plt.plot(freq, 'b')
+    
     x1,x2,y1,y2 = plt.axis()
-    ax.set_xlim([x1,numbers[-1]])
+    
+    ax.set_xlim([numbers[0],numbers[-1]])
+
+    themin = min(np.min(np.min(freq)), 0)
+    themax = np.max(np.max(freq))
+    d = (themax-themin) * 0.05
+    ax.set_ylim([themin-1.0,themax*1.05])
     for n,num in zip(names, numbers):
-      plt.text(num-0.25, -25, n)
+      plt.text(num-0.25, themin-d, n)
       plt.plot([num, num],[max(y1,0),y2], 'k')
 
     ax.set_xticklabels([])
@@ -1494,17 +2029,17 @@ class spring_cluster:
 
     self.myphi.dyn.zero_fcs() #return analytic part to zero
 ##
-  def send_harmonic_string(self, string=''):
+  def send_harmonic_string(self, string='', spin_config=None):
     #internally useful
     if string == '':
-      harmonicstring = self.write_harmonic('t', dontwrite=True)
+      harmonicstring = self.write_harmonic('t', dontwrite=True, spin_config=spin_config)
       self.myphi.load_harmonic_new(harmonicstring, False, zero=False, stringinput=True)
     else:
       self.myphi.load_harmonic_new(string, False, zero=False, stringinput=True)
     self.sentharm =  True
 
 
-  def gruneisen_total(self,qpoints, T):
+  def gruneisen_total(self,qpoints, T, spin_config=None):
     #integrates grun parameter
     if not 2 in self.dims_hashed or not 3 in self.dims_hashed:
       print 'error, need to fit harmonic and cubic spring constants'
@@ -1525,7 +2060,7 @@ class spring_cluster:
 
 
     if not self.sentharm:
-      harmonicstring = self.write_harmonic('t', dontwrite=True)
+      harmonicstring = self.write_harmonic('t', dontwrite=True, spin_config=spin_config)
       self.myphi.load_harmonic_new(harmonicstring, False, zero=False, stringinput=True)
 
     qpts = self.myphi.dyn.generate_qpoints_simple(qpoints[0],qpoints[1],qpoints[2])
@@ -1569,7 +2104,7 @@ class spring_cluster:
     self.sentharm = False
 
 #  def gruneisen(self,qpoint, cubic):
-  def gruneisen(self,qpoint):
+  def gruneisen(self,qpoint, spin_config=None):
 #    calculates gruneisen parameter at a qpoint
   
     if not 2 in self.dims_hashed or not 3 in self.dims_hashed:
@@ -1578,7 +2113,7 @@ class spring_cluster:
       print 'error, need to do the fitting'
     
     if not self.sentharm:
-      harmonicstring = self.write_harmonic('t', dontwrite=True)
+      harmonicstring = self.write_harmonic('t', dontwrite=True, spin_config=spin_config)
       self.myphi.load_harmonic_new(harmonicstring, False, zero=False, stringinput=True)
       self.sentharm = True
     
@@ -1759,7 +2294,7 @@ class spring_cluster:
 
     return R_big, dphi_big
 
-  def gruneisen_fast(self,qpoint, R_big, dphi_big, singlepoint = True):
+  def gruneisen_fast(self,qpoint, R_big, dphi_big, singlepoint = True, spin_config=None):
 #    calculates gruneisen parameter at a qpoint
     nat = self.myphi.nat
   
@@ -1769,7 +2304,7 @@ class spring_cluster:
       print 'error, need to do the fitting'
     
     if not self.sentharm:
-      harmonicstring = self.write_harmonic('t', dontwrite=True)
+      harmonicstring = self.write_harmonic('t', dontwrite=True, spin_config=spin_config)
       self.myphi.load_harmonic_new(harmonicstring, False, zero=False, stringinput=True)
       self.sentharm = True
 
@@ -1835,8 +2370,661 @@ class spring_cluster:
     return Cij
 
 
+  def fire(self,func, x_start, niter):
+
+
+
+      v = np.zeros(x_start.shape)
+      en, force = func(x_start)
+      nmin = 5
+      astart = 0.1
+      dt = 0.05
+      dtmax = 0.2
+      finc = 1.1
+      fa = 0.99
+      a0 = 0.1
+      a = a0
+      fdec = 0.05
+
+      x = x_start
+
+      x[x > 1.0] = 1.0 #bounds
+      x[x < -1.0] = -1.0
+      
+      ftot = np.sum(np.abs(force))
+      print 'ftot start',ftot
+
+      for i in range(niter):
+          power = np.dot(-force, v)
+          if power > 0:
+              v = (1 - a)*v + a * np.dot(v,v)**0.5 * (-1*force) / np.dot(force, force)**0.5
+              if i > nmin:
+                  dt = min(dt*finc, dtmax)
+                  a = a * fa
+          else:
+              v[:] = 0.0
+              a = a0
+              dt = fdec
+
+          v += dt * (-1*force)
+
+          step = dt * v
+        
+          step[step > 0.1] = 0.1
+          step[step < -0.1] = -0.1
+          
+          x = x + step
+######          x = x + dt * v
+
+          x[x > 1.0] = 1.0
+          x[x < -1.0] = -1.0
+
+          en, force = func(x)
+
+          ftot = np.sum(np.abs(force))
+          print 'ftot',i, ftot, dt, power
+          if ftot < 1e-5:
+              print 'exit fire'
+              break
+
+      return x
+
   
-  def relax(self,A,pos,types, relax_unit_cell=True):
+  def cg(self, func, x_start, niter):
+    #custom conjugate gradients code, that minimizes func using only forces, not energy
+    #for use in NEB, where goal is not to minimize energy
+    #func as the function, which returns 
+    
+      energy, F = func(x_start)
+
+      x = x_start
+
+      d = copy.copy(F)
+
+      r  = copy.copy(F)
+
+
+      eps = 1.0e-5
+  #    print F, 'starting energy', energy    
+      for i in range(niter):
+
+
+          energy_eps, F_eps = func(x + F* eps)
+
+          alpha = -eps * np.dot(d, F) / (np.dot(F_eps, d) - np.dot(F, d))
+
+          if alpha < -10.:
+              alpha = -10.0
+          if alpha > 10.:
+              alpha = 10.0
+
+          x = x + alpha * d
+
+          x[x > 1.0] = 1.0
+          x[x < -1.0] = -1.0
+          
+          rold = copy.copy(r)
+          energy, F = func(x)#
+  #
+          r = copy.copy(F)
+
+          beta = max(0.0, np.dot(r, r - rold) / np.dot(rold, rold))#
+
+  #        print 'energy alpha beta', energy, alpha, beta
+
+
+  ###        beta = 0.0
+          d = r + beta * d 
+          #        print F, 'energy alpha beta', energy, alpha, beta , x
+
+
+          if np.sum(np.abs(F)) < 1e-3:
+              break
+
+      return x
+
+
+  def neb(self, A1,pos1,types, A2=None,pos2=None,nimages=3, niter = 30):
+
+      if nimages < 3:
+        nimages = 3
+      
+    
+      strain_constant = 50. #BFGS relaxation takes gigantic initial strain steps if you don't use a constant. i do not understand why...
+      forces_constant = 1.0
+      counter = 0
+
+
+      spring_const = self.spring_const
+#      spring_const = 0.01
+
+
+      relax_unit_cell = False
+
+      nat = np.array(pos1).shape[0]
+
+      A1=np.array(A1)
+      pos1=np.array(pos1)
+
+      
+
+      pos_images = []
+      A_images = []
+
+      print 'neb types', types
+      print 'started neb'
+
+      supercell = np.diag(self.myphi.find_best_fit_cell(A1)).tolist()
+      print 'neb types', types
+      print 'started neb', supercell
+      
+      Acell, coords_hs, supercell_number, supercell_index = self.myphi.generate_cell(supercell)
+      correspond, vacancies = self.myphi.find_corresponding(coords_hs, coords_hs)
+
+
+      
+#      Acell = A1
+
+      if pos2 is None:
+        pos2 = coords_hs
+        A2=Acell
+
+      pos2=np.array(pos2)
+
+      u1,types_s,u_super, supercell = self.myphi.figure_out_corresponding(pos1, A1, types)
+      u2,types_s,u_super, supercell = self.myphi.figure_out_corresponding(pos2, A2, types)
+
+#      print 'types_s', types_s
+      
+  #    Acell, coords_hs, supercell_number, supercell_index = self.myphi.generate_cell(supercell)
+
+
+      x0=np.zeros(nat*3*(nimages-2),dtype=float)
+
+      for n in range(nimages): #linear interp starting guess
+        x=float(n)/(float(nimages-1))
+
+        u_im = u1 * (1.0-x) + u2 * x
+
+  #      print n, 'u_im', u_im
+
+        pos_images.append(copy.copy(u_im))
+
+        A=A1*(1.0-x) + A2 * x
+        A_images.append(copy.copy(A))
+
+
+
+
+        #precalculate first and last image, which do not change
+        if n == 0:
+          crys = coords_hs+np.dot(u_im,np.linalg.inv(A))
+
+#          energy0, forces0, stress0 = calc_energy(u_im)
+#          energy0, forces0, stress0 = self.calc_energy_u(Acell, crys, types_s)
+          energy0, forces0, stress0, energies0 = self.calc_energy_fast(A, crys, types_s, correspond=correspond)
+
+          print 'neb starting energy', energy0
+
+          if forces0.shape[0] > nat:
+            energy0 = energy0 / float(forces0.shape[0])*float(nat)
+            forces0  = forces0[0:nat,:]
+
+          u0 = copy.copy(u_im)
+
+        elif n == nimages-1:
+          crys = coords_hs+np.dot(u_im,np.linalg.inv(A))
+
+#          energyN, forcesN, stressN = calc_energy(u_im)
+#          energyN, forcesN, stressN = self.calc_energy_u(Acell, crys, types_s)
+          energyN, forcesN, stressN, energiesN =  self.calc_energy_fast(A, crys, types_s, correspond=correspond)
+          print 'neb ending energy', energyN
+
+          if forcesN.shape[0] > nat:
+            energyN = energyN / float(forcesN.shape[0])*float(nat)
+            forcesN  = forcesN[0:nat,:]
+
+
+          uN = copy.copy(u_im)
+
+        else:
+          x0a=np.reshape(u_im,(nat*3))*forces_constant
+          x0[nat*(n-1)*3:nat*3*(n)] = x0a[:]
+
+
+      x0[x0 > 1.0] = 1.0
+      x0[x0 < -1.0] = -1.0
+
+      print
+      print 'STARTING NEB'
+      print '----------------------------------------'
+
+
+
+      if relax_unit_cell == False:
+        def func(x):
+
+          energy_tmp = [energy0]
+          forces_tmp = [forces0]
+          u_tmp = [u0]
+
+
+          for n in range(nimages-2):
+
+            u = np.reshape(x[nat*n*3:nat*3*(n+1)], (nat,3))/forces_constant
+            A=A_images[n]
+
+            crys = coords_hs+np.dot(u,np.linalg.inv(A))
+
+#            energy, forces, stress = calc_energy(u)
+#            energy, forces, stress = self.calc_energy_u(Acell, crys, types_s)
+            energy, forces, stress, energies =  self.calc_energy_fast(A, crys, types_s, correspond=correspond)
+            if forces.shape[0] > nat:
+              energy = energy / float(forces.shape[0])*float(nat)
+              forces  = forces[0:nat,:]
+
+            energy_tmp.append(energy)
+            forces_tmp.append(copy.copy(forces))
+            u_tmp.append(copy.copy(u))
+
+          energy_tmp.append(energyN)
+          forces_tmp.append(forcesN)
+          u_tmp.append(uN)
+
+          n_climb = np.argmax(energy_tmp)
+
+          ftot = 0.0
+          for f in forces_tmp:
+            ftot += np.sum(np.abs(f))
+          
+          print 'energy_tmp',ftot,'  ',  energy_tmp
+#          print 'forces'
+#          for f in forces_tmp:
+#            print f
+#          print
+          
+          #        print 'climbing image', n_climb, energy_tmp[n_climb]
+
+          forces_mat = np.zeros(3*nat*(nimages-2),dtype=float)
+          energies = 0.0
+          
+          for n in range(1,nimages-1):
+
+            tau_plus  = u_tmp[n+1]-u_tmp[n]
+            tau_minus = u_tmp[n]-u_tmp[n-1]
+
+            dVmax = max(abs(energy_tmp[n+1]-energy_tmp[n]) ,abs(energy_tmp[n-1]-energy_tmp[n]))
+            dVmin = min(abs(energy_tmp[n+1]-energy_tmp[n]) ,abs(energy_tmp[n-1]-energy_tmp[n]))
+
+  #          for at in range(nat):
+  #            if np.sum(np.abs(tau_plus[at,:])) > 1e-7:
+  #              tau_plus[at,:] = np.linalg.norm(tau_plus[at,:])
+  #            else:
+  #              tau_plus[at,:] = [1,0,0]
+  #            if np.sum(np.abs(tau_plus[at,:])) > 1e-7:
+  #              tau_minus[at,:] = np.linalg.norm(tau_minus[at,:])
+  #            else:
+  #              tau_minus[at,:] = [1,0,0]
+
+            if energy_tmp[n+1] > energy_tmp[n]  and energy_tmp[n] > energy_tmp[n-1]:
+              tau = tau_plus
+            elif energy_tmp[n+1] < energy_tmp[n]  and energy_tmp[n] < energy_tmp[n-1]:
+              tau = tau_minus
+            elif energy_tmp[n+1] > energy_tmp[n-1]:
+              tau = tau_plus * dVmax + tau_minus * dVmin
+            elif energy_tmp[n+1] <= energy_tmp[n-1]:
+              tau = tau_plus * dVmin + tau_minus * dVmax
+
+
+            tau = tau / np.sum(tau[:]**2)**0.5
+
+            def dist(mat):
+              return np.sum(np.sum( mat**2))**0.5
+
+
+
+            if False:
+              F_spring = spring_const*( dist(u_tmp[n+1]-u_tmp[n]) - dist(u_tmp[n]-u_tmp[n-1])) * tau
+              F_tot = forces_tmp[n] + F_spring
+
+              energies += energy_tmp[n] + 0.5*spring_const*( dist(u_tmp[n+1]-u_tmp[n]) - dist(u_tmp[n]-u_tmp[n-1]))**2
+              
+            else:
+  
+            
+#              if False:
+              if n == n_climb:
+
+  #              F_tot = forces_tmp[n] - 2.0*forces_tmp[n] * tau #climbing image????
+
+                F_tot = forces_tmp[n] - 2.0* tau * np.sum(forces_tmp[n] * tau)/np.sum(tau*tau) #forces_tmp[n] * tau #climbing image????
+
+  #              print 'climbing image', n, np.sum(np.sum(np.abs(F_tot))), energy_tmp[n]
+
+
+              else:
+
+                F_spring = spring_const*( dist(u_tmp[n+1]-u_tmp[n]) - dist(u_tmp[n]-u_tmp[n-1])) * tau
+  #              F_perp = forces_tmp[n] - forces_tmp[n] * tau
+                F_perp = forces_tmp[n] - tau * np.sum(forces_tmp[n] * tau)/np.sum(tau*tau)
+
+                F_tot = F_perp + F_spring
+
+  #              F_tot = forces_tmp[n]
+
+    #            print "n", n
+    #            print F_tot
+
+    #            F_tot = forces_tmp[n]
+
+            forces_mat[(n-1)*3*nat:n*3*nat] = np.reshape(F_tot,nat*3)/forces_constant
+
+
+  #          print 'neb energy ', energy_tmp
+
+
+          return energies, -forces_mat
+
+      bounds = []
+      for b in range(nat*3*(nimages-2)):
+        bounds.append([-1.0, 1.0])
+
+#      print 'using bounded L-BFGS-B'
+#      optout = optimize.minimize(func, x0[:], method='L-BFGS-B', jac=True, bounds=bounds, options={'maxiter':50})
+#      x=optout.x
+
+      #    optout = optimize.minimize(func, x0[:], method='BFGS', jac=True, options={'maxiter':50})
+
+#      print 'using custom cg'
+#      x = self.cg(func, x0, 30)
+
+      print 'using custom fire'
+      x = self.fire(func, x0, niter)
+
+      crys_coords = []
+      energies = []
+
+
+      energy_max = -100000000.0
+      for n in range(0,nimages-2):
+        u = np.reshape(x[nat*n*3:nat*3*(n+1)], (nat,3))/forces_constant
+        crys = coords_hs+np.dot(u,np.linalg.inv(A_images[n]))
+
+#        energy, forces, stress = calc_energy(u)
+#        energy, forces, stress = self.calc_energy_u(Acell, crys, types_s)
+        energy, forces, stress, energies = self.calc_energy_fast(A_images[n], crys, types_s, correspond=correspond)
+        crys_coords.append(crys)
+        energies.append(energy)
+
+        if energy > energy_max :
+          energy_max = energy
+          crys_max = copy.copy(crys)
+          forces_max = copy.copy(forces)
+          stress_max = copy.copy(stress)
+          A_max = copy.copy(A_images[n])
+          
+      if energy_max < 0 or energy_max < energyN: #fallback option if there is no max, guess middle
+        n = int(round(nimages*0.2))
+        u = np.reshape(x[nat*n*3:nat*3*(n+1)], (nat,3))/forces_constant
+        crys = coords_hs+np.dot(u,np.linalg.inv(A_images[n]))
+
+        energy, forces, stress, energies = self.calc_energy_fast(A_images[n], crys, types_s, correspond=correspond)
+        energy_max = energy
+        crys_max = copy.copy(crys)
+        forces_max = copy.copy(forces)
+        stress_max = copy.copy(stress)
+        A_max = copy.copy(A_images[n])
+        
+          
+      return crys_max, A_max, types_s, [energy_max,forces_max,stress_max], energies, crys_coords
+
+  
+###  def neb(self,A1,pos1,types, A2=None,pos2=None,nimages=5):
+###
+###    strain_constant = 50. #BFGS relaxation takes gigantic initial strain steps if you don't use a constant. i do not understand why...
+###    forces_constant = 1.0
+###    counter = 0
+###
+###    spring_const = 1.0
+###    
+###    relax_unit_cell = False
+###    
+###    nat = pos1.shape[0]
+###    
+###    A1=np.array(A1)
+###    pos1=np.array(pos1)
+###
+###    pos_images = []
+###    A_images = []
+###
+###    print 'started neb'
+####    print 'started neb supercell', self.myphi.supercell
+####    sys.stdout.flush()
+###
+###    supercell = np.diag(self.myphi.find_best_fit_cell(A1)).tolist()
+###    Acell, coords_hs, supercell_number, supercell_index = self.myphi.generate_cell(supercell)
+###
+###    if pos2 is None:
+###      pos2 = coords_hs
+###      A2=Acell
+####      print 'pos2'
+####      print pos2
+####      print 'A2'
+####      print A2
+####      print
+###      
+###    u1,types_s,u_super, supercell = self.myphi.figure_out_corresponding(pos1, Acell, types)
+###    u2,types_s,u_super, supercell = self.myphi.figure_out_corresponding(pos2, Acell, types)
+###    #    u2 = -u1
+###    
+###
+####    print 'correspond'
+####    sys.stdout.flush()
+###
+###    Acell, coords_hs, supercell_number, supercell_index = self.myphi.generate_cell(supercell)
+###
+####    print 'gen cell'
+####    sys.stdout.flush()
+###    
+###    x0=np.zeros(nat*3*(nimages-2),dtype=float)
+###    
+###    for n in range(nimages): #linear interp starting guess
+###      x=float(n)/(float(nimages-1))
+###
+###      u_im = u1 * (1.0-x) + u2 * x
+###
+####      A_im = A1 * (1.0-x) + A2 * x      #fix to reference cell
+###      
+###      pos_images.append(copy.copy(u_im))
+###
+###      A_images.append(copy.copy(Acell))
+###
+####      print 'corerespond ',n
+####      sys.stdout.flush()
+###
+###
+####      print 'neb', n, x
+####      print 'u_im'
+####      print u_im
+####      print
+####      u,types_s,u_super, supercell = self.myphi.figure_out_corresponding(pos_im, Acell, types)
+###      
+###      
+###    
+###      #precalculate first and last image, which do not change
+###      if n == 0:
+###        crys = coords_hs+np.dot(u_im,np.linalg.inv(Acell))
+####        print 'u'
+####        print u
+####        print 'coords_hs'
+####        print coords_hs
+####        print 
+####        print 'energy0'
+####        print Acell
+####        print crys
+####        print types_s
+####        print 'zzzzzzzzzzzzzzzzzzzzz'
+####        sys.stdout.flush()
+###
+###        energy0, forces0, stress0 = self.calc_energy_u(Acell, crys, types_s)
+###
+###        print 'neb starting energy', energy0
+###        
+###        if forces0.shape[0] > nat:
+###          energy0 = energy0 / float(forces0.shape[0])*float(nat)
+###          forces0  = forces0[0:nat,:]
+###        
+###        u0 = copy.copy(u_im)
+###        
+###      elif n == nimages-1:
+###        crys = coords_hs+np.dot(u_im,np.linalg.inv(Acell))
+###
+####        print 'energyN'
+####        sys.stdout.flush()
+###        energyN, forcesN, stressN = self.calc_energy_u(Acell, crys, types_s)
+###
+###        print 'neb ending energy', energyN
+###        
+###        if forcesN.shape[0] > nat:
+###          energyN = energyN / float(forcesN.shape[0])*float(nat)
+###          forcesN  = forcesN[0:nat,:]
+###
+###
+###        uN = copy.copy(u_im)
+###        
+###      else:
+###        x0a=np.reshape(u_im,(nat*3))*forces_constant
+###        x0[nat*(n-1)*3:nat*3*(n)] = x0a[:]
+###        
+###
+###    x0[x0 > 1.0] = 1.0
+###    x0[x0 < -1.0] = -1.0
+###    
+###    print
+###    print 'STARTING NEB'
+###    print '----------------------------------------'
+###
+###    sys.stdout.flush()
+###
+###    if relax_unit_cell == False:
+###      def func(x):
+###
+###        energy_tmp = [energy0]
+###        forces_tmp = [forces0]
+###        u_tmp = [u0]
+###
+###        
+###        for n in range(nimages-2):
+###
+###          u = np.reshape(x[nat*n*3:nat*3*(n+1)], (nat,3))/forces_constant
+###          crys = coords_hs+np.dot(u,np.linalg.inv(Acell))
+###
+###          energy, forces, stress = self.calc_energy_u(Acell, crys, types_s)
+###          if forces.shape[0] > nat:
+###            energy = energy / float(forces.shape[0])*float(nat)
+###            forces  = forces[0:nat,:]
+###          
+###          energy_tmp.append(energy)
+###          forces_tmp.append(copy.copy(forces))
+###          u_tmp.append(copy.copy(u))
+###
+###        energy_tmp.append(energyN)
+###        forces_tmp.append(forcesN)
+###        u_tmp.append(uN)
+###
+###        n_climb = np.argmax(energy_tmp)
+###
+###        print 'climbing image', n_climb, energy_tmp[n_climb]
+###        
+###        forces_mat = np.zeros(3*nat*(nimages-2),dtype=float)
+###        
+###        for n in range(1,nimages-1):
+###
+###          tau_plus  = u_tmp[n+1]-u_tmp[n]
+###          tau_minus = u_tmp[n]-u_tmp[n-1]
+###
+###          dVmax = max(abs(energy_tmp[n+1]-energy_tmp[n]) ,abs(energy_tmp[n-1]-energy_tmp[n]))
+###          dVmin = max(abs(energy_tmp[n+1]-energy_tmp[n]) ,abs(energy_tmp[n-1]-energy_tmp[n]))
+###          
+###          for at in range(nat):
+###            if np.sum(np.abs(tau_plus[at,:])) > 1e-7:
+###              tau_plus[at,:] = np.linalg.norm(tau_plus[at,:])
+###            else:
+###              tau_plus[at,:] = [0,0,1]
+###            if np.sum(np.abs(tau_plus[at,:])) > 1e-7:
+###              tau_minus[at,:] = np.linalg.norm(tau_minus[at,:])
+###            else:
+###              tau_minus[at,:] = [0,0,1]
+###
+###          if energy_tmp[n+1] > energy_tmp[n]  and energy_tmp[n] > energy_tmp[n-1]:
+###            tau = tau_plus
+###          elif energy_tmp[n+1] < energy_tmp[n]  and energy_tmp[n] < energy_tmp[n-1]:
+###            tau = tau_minus
+###          elif energy_tmp[n+1] > energy_tmp[n-1]:
+###            tau = tau_plus * dVmax + tau_minus * dVmin
+###          elif energy_tmp[n+1] <= energy_tmp[n-1]:
+###            tau = tau_plus * dVmin + tau_minus * dVmax
+###
+###          def dist(mat):
+###            return np.sum(np.sum( mat**2))**0.5
+###
+###          if n == n_climb:
+###
+###            F_tot = forces_tmp[n] - 2.0*forces_tmp[n] * tau #climbing image????
+###
+###            
+###          else:
+###            F_spring = spring_const*( dist(u_tmp[n+1]-u_tmp[n]) - dist(u_tmp[n]-u_tmp[n-1])) * tau
+###
+###            F_perp = forces_tmp[n] - forces_tmp[n] * tau
+###
+###            F_tot = F_perp + F_spring
+###
+###          forces_mat[(n-1)*3*nat:n*3*nat] = np.reshape(F_tot,nat*3)/forces_constant
+###          
+###          print 'neb energy ', energy_tmp
+###              
+###        #        print
+###        return np.sum(energy_tmp), -forces_mat
+###
+####    optout = optimize.minimize(func, x0[:], method='CG', jac=True, options={'maxiter':20})
+###
+###    bounds = []
+###    for b in range(nat*3*(nimages-2)):
+###      bounds.append([-1.0, 1.0])
+###    print 'using bounded L-BFGS-B'
+###    
+###    optout = optimize.minimize(func, x0[:], method='L-BFGS-B', jac=True, bounds=bounds, options={'maxiter':20})
+###
+###    crys_coords = []
+###    energies = []
+###
+####    print 'optout'
+####    print optout
+###    
+###    energy_max = -100000000.0
+###    for n in range(0,nimages-2):
+###      u = np.reshape(optout.x[nat*n*3:nat*3*(n+1)], (nat,3))/forces_constant
+###      crys = coords_hs+np.dot(u,np.linalg.inv(Acell))
+###
+####      energy, forces, stress = self.calc_energy(Acell, crys, types_s)
+###      energy, forces, stress = self.calc_energy_fast(Acell, crys, types_s)
+###
+###      crys_coords.append(crys)
+###      energies.append(energy)
+###
+###      if energy > energy_max :
+###        energy_max = energy
+###        crys_max = copy.copy(crys)
+###        forces_max = copy.copy(forces)
+###        stress_max = copy.copy(stress)
+###        
+###    return crys_max, Acell, types_s, [energy_max,forces_max,stress_max], energies, crys_coords
+###  
+###      
+    
+  
+  def relax(self,A,pos,types, relax_unit_cell=True, constrained_relax = -99, basinhopping=False, temperature=0.1, iters=20, stepsize=0.1 ):
     #find local minimum of atomic positions 
 
     strain_constant = 50. #BFGS relaxation takes gigantic initial strain steps if you don't use a constant. i do not understand why...
@@ -1845,6 +3033,15 @@ class spring_cluster:
 
     A_init = A
 
+#    if type(types[0]) is str:
+#      t2 = []
+#      for t in types:
+#        t2.append(self.myphi.types_dict[t])
+#      types = t2
+
+#    print 'types', types
+
+    
     print
     print 'STARTING MINIMIZATION'
     print '----------------------------------------'
@@ -1852,13 +3049,30 @@ class spring_cluster:
     cart = np.dot(pos, A)
     nat = pos.shape[0]
 
+
+    #if constrained relax, we use bounds of -1,1 for each u, except first u is set to zero
+    if constrained_relax > 0:
+      bounds = [[0,0],[0,0],[0,0]] #first atom fixed to zero
+      for c in range(3*(nat-1)):
+        bounds.append([-1.0,1.0])
+
+      if relax_unit_cell == True:
+        for c in range(6):
+          bounds.insert(0,[-1.0,1.0])
+        
+#      print 'using bounds'
+#      print bounds
+    
     u,types_s,u_super, supercell = self.myphi.figure_out_corresponding(pos, A, types)
+    
+    Acell, coords_hs, supercell_number, supercell_index = self.myphi.generate_cell(supercell)
 
-    print 'starting u'
-    print u
-    print
+    
+#    print 'starting u'
+#    print u
+#    print
 
-    Aref = self.myphi.Acell_super
+    Aref = Acell
 
     if relax_unit_cell == False:
 #      cart0 =np.reshape(cart,nat*3)
@@ -1872,9 +3086,9 @@ class spring_cluster:
 
       et = np.dot(np.linalg.inv(Aref),A) - np.eye(3)
       strain_initial =  0.5*(et + et.transpose())
-      print 'initial strain'
-      print strain_initial
-      print 
+#      print 'initial strain'
+#      print strain_initial
+#      print 
       x0=np.zeros(6+nat*3,dtype=float)
       x0[0] = strain_initial[0,0]*strain_constant
       x0[1] = strain_initial[1,1]*strain_constant
@@ -1890,23 +3104,21 @@ class spring_cluster:
 
     if relax_unit_cell == False:
       def func(x):
-        print 'ITER ' + ' -------------'
+#        print 'ITER ' + ' -------------'
         u = np.reshape(x, (nat,3))/forces_constant
-        crys = self.myphi.coords_super+np.dot(u,np.linalg.inv(A))
+        crys = coords_hs+np.dot(u,np.linalg.inv(A))
 #        crys = np.dot(pos, np.linalg.inv(A))
-        energy, forces, stress = self.calc_energy(A, crys, types_s)
-        print
-        print 'opt_u'
-        print u
-        print
+        if constrained_relax > 0:
+          energy, forces, stress = self.calc_energy(A, crys, types_s,order=constrained_relax)
+        else:
+          energy, forces, stress, energies = self.calc_energy_fast(A, crys, types_s)
+        if forces.shape[0] > nat:
+          energy = energy / float(forces.shape[0])*float(nat)
+          forces  = forces[0:nat,:]
+          
         print 'opt_energy', energy
-        print
-        print 'opt_crys'
-        print crys
-        print
-        print 'opt_forces'
-        print forces
-        print
+
+        #        print
         return energy, -np.reshape(forces,nat*3)/forces_constant
 
     elif relax_unit_cell == True:
@@ -1930,36 +3142,46 @@ class spring_cluster:
         A = np.dot(Aref, np.eye(3)+strain)
         u = np.reshape(x[6:], (nat,3))/forces_constant
         
-        crys = self.myphi.coords_super+np.dot(u,np.linalg.inv(A))
+        crys = coords_hs+np.dot(u,np.linalg.inv(A))
         
         print 'ITER ' + ' -------------'
 #        counter += 1
         print
 #        print 'opt_x ' +str(x)
-        print 'opt_A'
-        print A
-        print
+#        print 'opt_A'
+#        print A
+#        print
 #        print 'opt_pos'
 #        print pos
 
 #        crys = np.dot(pos, np.linalg.inv(A))
-        print 'opt_crys'
-        print crys
-        print
-        energy, forces, stress = self.calc_energy(A, crys, types_s)
+#        print 'opt_crys'
+#        print crys
+#        print
+
+        if constrained_relax > 0:
+          energy, forces, stress = self.calc_energy(A, crys, types_s,order=constrained_relax)
+        else:
+          energy, forces, stress, energies = self.calc_energy_fast(A, crys, types_s)
+
+
+        if forces.shape[0] > nat:
+          energy = energy / float(forces.shape[0])*float(nat)
+          forces  = forces[0:nat,:]
 
         stressA = stress * abs(np.linalg.det(A))
                        
-        print
+#        print
         print 'opt_energy', energy
-        print
-        print 'opt_stress'
-        print stress
+
+        #        print
+#        print 'opt_stress'
+#        print stress
 #        print 'opt_stressA'
 #        print stressA
-        print 'opt_forces'
-        print forces
-        print
+#        print 'opt_forces'
+#        print forces
+#        print
 
         ret[0] = stressA[0,0]/strain_constant
         ret[1] = stressA[1,1]/strain_constant
@@ -1979,10 +3201,57 @@ class spring_cluster:
 
 
 
-    print 'calling scipy.optimize, running BFGS...'
     print
-    optout = optimize.minimize(func, x0[:], method='BFGS', jac=True)
-#    optout = optimize.minimize(func, x0[:], method='BFGS', jac=False, options={'maxiter': 0})
+
+    if basinhopping == True:
+      print 'we are basin-hopping at T=', temperature, ' for ', iters
+
+      def print_fun(x,f,accepted):
+        print 'basin hopping at min E = ', f, accepted
+
+      if constrained_relax > 0:
+
+        method = {'method':'L-BFGS-B', 'jac':True, 'bounds':bounds}
+        
+        print 'calling scipy.basinhopping, running L-BFGS-B...'
+        optout = optimize.basinhopping(func, x0[:], minimizer_kwargs=method, T=temperature, niter=iters, stepsize=stepsize, callback=print_fun)
+      else:
+        print 'calling scipy.basinhopping, running BFGS...'
+        method = {'method':'BFGS', 'jac':True}
+        optout = optimize.basinhopping(func, x0[:], minimizer_kwargs=method, T=temperature, niter=iters, stepsize=stepsize, callback=print_fun)
+      
+
+      
+    else:
+      print 'we are (local) minimizing'
+      if constrained_relax > 0:
+#        print 'calling scipy.optimize, running L-BFGS-B...'
+#        optout = optimize.minimize(func, x0[:], method='L-BFGS-B', jac=True, bounds=bounds)
+
+        print 'calling scipy.optimize, running SLSQP...'
+        x0 = x0 / np.sum(x0**2) * 1.0
+        def func2(x):
+          e,f = func(x)
+          return e*100, f*100
+        
+        eq_cons = {'type':'eq','fun': lambda x : np.sum(x**2)-1.0, 'jac':lambda x : 2.0*x}        
+        optout = optimize.minimize(func2,x0[:],method='SLSQP', jac=True, constraints = [eq_cons],bounds=bounds, options={'maxiter':30}) 
+
+        
+      else:
+
+#        print 'calling scipy.optimize, running custom CG...'
+#        x = self.cg(func, x0[:], 16)
+#        print 'x'
+#        print x
+
+        print 'calling scipy.optimize, running BFGS...'
+        optout = optimize.minimize(func, x0[:], method='BFGS', jac=True)
+
+
+
+
+    #    optout = optimize.minimize(func, x0[:], method='BFGS', jac=False, options={'maxiter': 0})
     print
     print 'done scipy.optimize'
 
@@ -1996,7 +3265,7 @@ class spring_cluster:
     if relax_unit_cell == False:
       pos_final = np.reshape(optout.x, (nat,3))/forces_constant
       A_final = A_init
-      crys_final = np.dot(pos_final, np.linalg.inv(A_final))
+      crys_final = coords_hs + np.dot(pos_final, np.linalg.inv(A_final))
 
     elif relax_unit_cell:
       strain_final = np.zeros((3,3),dtype=float)
@@ -2010,15 +3279,15 @@ class spring_cluster:
       strain_final[0,1] = optout.x[5]/strain_constant
       strain_final[1,0] = optout.x[5]/strain_constant
 
-      print 'strain_final'
-      print strain_final
+#      print 'strain_final'
+#      print strain_final
       print
 
       A_final = np.dot(Aref, np.eye(3)+strain_final)
       
       u_final = np.reshape(optout.x[6:], (nat,3))/forces_constant   
 
-      crys_final = self.myphi.coords_super + np.dot(u_final, np.linalg.inv(A_final))
+      crys_final = coords_hs + np.dot(u_final, np.linalg.inv(A_final))
 
 
     print 'crys_final'
@@ -2041,9 +3310,20 @@ class spring_cluster:
     return energy_final, crys_final, A_final
 ####
 
-  def recursive_update(self, DFT_function, file_list_train, steps, A_start, C_start, T_start,   temperature, dummy_input_file, directory='./', mc_steps=3000, update_type=[True, False, False], mc_cell = [], mc_start=0):
-#here is the recurisive updating code
-#you have pass it a DFT function that will do a DFT calculation of an input file and return input.number.out
+#  def make_outstr(self, A, pos, types):
+#    st = ''
+#    st += 'ATOMIC_POSITIONS crystal\n'
+#    for at in range(pos.shape[0]):
+#      st += types[at] + '   '+str(pos[at,0])+'   '+str(pos[at,1])+'   '+str(pos[at,2])+'\n'
+#      st += 'CELL_PARAMETERS bohr\n'
+#      for i in range(3):
+#        st += str(A[i,0]) + '   ' +str(A[i,1]) + '   ' +str(A[i,2]) + '\n'
+#    return st
+
+
+  def recursive_update(self, DFT_function, file_list_train, steps, A_start, C_start, T_start,   temperature, dummy_input_file, directory='./', mc_steps=3000, update_type=[True, False, False], mc_cell = [], mc_start=0,runaway_energy=-0.5,fraction=0.0, neb_mode=False, vmax = 1.0, smax=0.07):
+    #here is the recurisive updating code
+    #you have pass it a DFT function that will do a DFT calculation of an input file and return input.number.out
 
 #inputs:
 #DFT_function - the DFT function
@@ -2075,14 +3355,575 @@ class spring_cluster:
     self.myphi.relax_load_freq=1
 
     for mc_step in range(0+mc_start, steps+mc_start):
+      
+      #if fraction > 0, we substitute atoms
+      if fraction > 0:
+        C_start2,A_start2,T_start2 = qe_manipulate.generate_random_inputs(None, -1, 0.0, substitute_fraction=fraction, rand_list=self.myphi.cluster_types, exact_fraction=True,Ain=A_start,coordsin=C_start,coords_typein=T_start)
+      else:
+        A_start2=A_start
+        C_start2=C_start
+        T_start2=T_start
+  
+      supercell_old = self.myphi.supercell
+      #run montecarlo in structure generation [3000,0,0] mode at temperature K
+      energies, struct_all, strain_all, cluster_all, step_size, outstr, A, pos, types, unstable = self.run_mc(A_start2, C_start2, T_start2, [mc_steps,0,0], temperature ,0.0, [.05, .01], update_type,report_freq = 10, cell=mc_cell, runaway_energy=runaway_energy, neb_mode=neb_mode, vmax=vmax, smax=smax)
+      #now we have the new structure in outstr, we have to make an input file and do a DFT calculation
+      supercell_new = copy.copy(self.supercell)
+      
+      self.myphi.set_supercell(supercell_old)
+      if unstable == True:
+        print ' runaway found, energy below runaway energy,', unstable, runaway_energy
+      if neb_mode:
+
+        if unstable == False:
+          print 'no instability neb mode', mc_step, unstable, runaway_energy
+          #          continue
+        else:
+          print 'neb mode with instability, looking for good structure'
+          print 'starting pos'
+          print pos
+          print 'starting A'
+          print A
+          print 'types'
+          print types
+          print
+
+#          try:
+#            pos_neb, A_neb, types_neb, [e,f,s], energies, poses = self.neb(A,pos,types, A2=None,pos2=None,nimages=3, niter = 15) #find neb structure
+#            print 'neb mode final energy', e
+#          except:
+#            pos_neb=pos
+#            A_neb=A
+#            types_neb=types
+#            e=-1000000.0
+#
+#          if e < runaway_energy:
+          print 'no neb, trying linear interpolation, no relaxation'
+          pos_neb, A_neb, types_neb, [e,f,s], energies, poses = self.neb(A,pos,types, A2=None,pos2=None,nimages=9, niter = 0) #find neb structure
+
+
+
+          if self.myphi.vasp_mode == True:
+            qe_manipulate_vasp.cell_writer(pos_neb, A_neb, set(types_neb), types_neb, [1,1,1], 'POSCAR.mc')
+          else:
+            outstr[0] = self.make_outstr(A_neb, pos_neb, types_neb)
+        
+      print 'run new dft calc'
+      sys.stdout.flush()
+      rancorrectly, outputfile = self.run_dft(DFT_function, dummy_input_file, outstr[0], mc_step, directory=directory)      
+      print 'done run new dft calc'
+      sys.stdout.flush()
+
+      
+#remove vacancies
+#      outstr2 = ''
+#      for line in outstr.split('\n'):
+#        if len(line) > 0:
+#          if line[0] != 'X':
+#            outstr2=outstr2+line+'\n'
+#      outstr=outstr2
+#      print outstr
+#      sys.stdout.flush()
+#
+
+#
+#      filin=open(directory+dummy_input_file,'r')
+#      filout=open(directory+dummy_input_file+'.'+str(mc_step),'w')
+#
+#      for line in filin:
+#          sp = line.replace('=', ' = ').split()
+#          if len(sp) > 0:
+#              if sp[0] == 'REPLACEME':
+#                  filout.write(outstr)
+#              elif sp[0] == 'prefix':
+#                  filout.write("prefix  = '"+dummy_input_file+str(random.randint(1,10000))+"'\n")
+#              elif sp[0] == 'outdir':
+#                  filout.write("outdir  = '/tmp/"+dummy_input_file+str(random.randint(1,10000))+"'\n")
+#              else:
+#                  filout.write(line)
+#
+#                  
+#      filin.close()
+#      filout.close()
+#
+#      e,f,s = self.calc_energy_qe_input(directory+dummy_input_file+'.'+str(mc_step))
+#      print 'energy calc_qe_input ', e
+#
+##      fil=open(directory+dummy_input_file+'.'+str(mc_step),'r')
+##      C1, A1, T1 = qe_manipulate.generate_supercell(fil, [1,1,1], [])
+##      fil.close()
+##      print 'mctest'
+##      self.run_mc_test(A1,C1,T1,cell=[] )
+#      
+#
+#
+#      try:
+#
+#        retcode, outfile = DFT_function(directory+dummy_input_file, mc_step)
+#        
+#      #put the supercell back to the fitting supercell instead of the MC supercell
+#      #      self.myphi.set_supercell(supercell)
+#        self.myphi.set_supercell(self.supercell_orig)
+#
+#
+#        print 'PREDICTION of new DFT result'
+##        e,f,s,er,fr,sr = self.calc_energy_qe_file(outfile)
+#        e,f,s,er,fr,sr = self.calc_energy_qe_output_list([outfile])
+#
+#        if e[-1] == -99999999:
+#          raise OSError
+#
+#        for e,f,er,fr in zip(e,f,er,fr):
+#          print 'Energy PREDICTION ', e, er, e-er
+#          print 'Forces PREDICTION ', np.max(np.abs(f.flatten()-fr.flatten())), np.max(np.abs(fr.flatten()))
+
+
+      if rancorrectly:
+#        newfile = [outputfile+' 1.0 '+ str(mc_cell[0]) + ' '+ str(mc_cell[1]) + ' ' + str(mc_cell[2])  ]
+        newfile = [outputfile+' 1.0 ' ]
+        files += newfile
+
+#          rint = 't'+str(random.randint(1,1000))
+#          call('ls '+directory+dummy_input_file+'*out > '+rint, shell=True)
+#          fin = open(rint, 'r')
+#          fout = open(rint+'.1', 'w')
+#          for line in fin:
+#              sp = line.split()
+#              fout.write(sp[0] + ' 0.01  \n') #we weight new structures less
+#          fin.close()
+#          fout.close()
+
+#          call('cat '+file_list_train + ' '  + rint + '.1  > ' + file_list_train+'.new', shell=True)
+  #        call('cat '+rint + ' '  + file_list + ' > ' + file_list+'.new', shell=True)
+#          call('rm  '+rint , shell=True)
+
+#      except OSError as e:
+#        print 'warning, DFT raised an error, trying to continue'
+#        print e
+#        exit()
+
+
+      #now we have new training data, we refit model
+      ncalc_new = self.load_filelist(newfile,add=True) #we add to file list instead of overwriting to save time
+
+
+      if ncalc_new == 0:
+        print 'failed to load new file, attempt2 with smaller distortions'
+
+        supercell = np.diag(self.myphi.find_best_fit_cell(A_neb)).tolist()
+        Acell, coords_hs, supercell_number, supercell_index = self.myphi.generate_cell(supercell)
+
+        x=0.5
+        A_new = (A_neb*x+Acell*(1-x))
+        pos_new = pos_new*x + coords_hs*(1-x)
+        
+        outstr[0] = self.make_outstr(A_new, pos_new, types_neb)
+        
+
+        rancorrectly, outputfile = self.run_dft(DFT_function, dummy_input_file, outstr[0], mc_step+0.1, directory=directory)      
+        if rancorrectly:
+          newfile = [outputfile+' 1.0 '  ]
+          files += newfile
+          ncalc_new = self.load_filelist(newfile,add=True) #we add to file list instead of overwriting to save time
+          
+      if ncalc_new > 0:
+
+        t=self.do_repair
+        self.do_repair=False #this creates in inf loop unless we set to false
+        self.do_all_fitting()
+        self.do_repair=t
+
+        print 'NEW CALCULATION of new DFT result, insample'
+#      e,f,s,er,fr,sr = self.calc_energy_qe_file(outfile)
+        e,f,s,er,fr,sr = self.calc_energy_qe_output_list(newfile)
+        for e,f,er,fr in zip(e,f,er,fr):
+          print 'Energy POSTDICTION ', e, er, e-er
+          print 'Forces POSTDICTION ', np.max(np.abs(f.flatten()-fr.flatten())), np.max(np.abs(fr.flatten()))
+
+
+
+    return files
+
+
+#################################################################
+
+
+  def search_for_instability(self, iters = 5, cell=[], relax_unit_cell=False,typesfixed=None, types_fraction=-1):
+    if cell == []:
+      cell = copy.copy(self.myphi.supercell)
+      
+    #find instability
+
+    smax = 0
+    umax = 0
+    for d in self.dims:
+      if d[1] == umax:
+        smax = max(smax, d[0])
+      elif d[1] > umax:
+        umax = d[1]
+        smax = d[0]
+
+    print
+    print 'searching for instability, u = ', umax, ' s = ', smax, ' cell ', cell
+
+    Acell, coords, supercell_number, supercell_index = self.myphi.generate_cell(cell)
+
+    if umax == 0 or umax == 1:
+      print 'error, search_for_instability with umax < 2 makes no sense'
+      print 'trying to return'
+      return False, 0, coords, Acell, np.zeros(nat,dtype=float) , umax
+    
+    
+    if umax%2 == 1:
+      umax = umax - 1
+      print 'warning max u is odd, setting to ', umax 
+    print
+
+
+    nat = coords.shape[0]
+    
+    for i in range(iters):
+
+      if typesfixed is not None:
+        types=typesfixed
+      elif smax == 0: #in this case there are no substituation terms
+        types = self.myphi.coords_type * int(round(nat / self.myphi.nat))
+      elif types_fraction > 0:
+        T_start = self.myphi.coords_type * int(round(nat / self.myphi.nat))
+#        print 'T_start', T_start
+#        print self.myphi.coords_type
+#        print int(round(nat / self.myphi.nat))
+        
+        C_start2,A_start2,types = qe_manipulate.generate_random_inputs(None, -1, 0.0, substitute_fraction=types_fraction, rand_list=self.myphi.cluster_types, exact_fraction=True,Ain=Acell,coordsin=coords,coords_typein=T_start)
+      else:
+        T_start = self.myphi.coords_type * int(round(nat / self.myphi.nat))
+        C_start2,A_start2,types = qe_manipulate.generate_random_inputs(None, -1, 0.0, substitute_fraction=0.5, rand_list=self.myphi.cluster_types, exact_fraction=False,Ain=Acell,coordsin=coords,coords_typein=T_start)
+
+
+
+      coords_rand = coords + (np.random.rand(nat,3)-0.5) * 0.1
+      coords_rand[0,:] = coords[0,:] #keep first atom fixed to zero
+
+#      print 'coords_rand'
+#      print coords_rand
+#      print 'types'
+#      print types
+      
+#      energy_final, crys_final, A_final = self.relax(Acell, coords_rand, types, relax_unit_cell, constrained_relax = umax, basinhopping=True, temperature=0.02, iters=5, stepsize=0.9)
+      energy_final, crys_final, A_final = self.relax(Acell, coords_rand, types, relax_unit_cell, constrained_relax = umax, basinhopping=False, temperature=0.02, iters=5, stepsize=0.9)
+
+#      crys_final = crys_final + coords
+      
+      print 'search_for_instability iter ', i, ' energy_final ', energy_final
+
+#      if energy_final + 2e-3 < 0.0: #tolerance
+      if energy_final + 1e-5 < 0.0: #tolerance
+        print 
+        print 'found instability !!!!!!!!!, returning unstable structure'
+        return True, energy_final, crys_final, A_final, types, umax
+      
+    print 
+    print 'search_for_instability NO instability found, within tolerance.'
+    print
+    return False, energy_final, crys_final, A_final, types,umax
+
+
+#################################################################
+
+ 
+  def recursive_instability(self, DFT_function, file_list_train, dummy_input_file,  directory='./', cell=[], mc_start = 0, max_iters=10, relax_unit_cell=False, typesfixed = None, types_fraction=-1):
+
+    if cell == []:
+      cell = copy.copy(self.myphi.supercell)
+    print
+    print 'running recursive_instabilty, maxiter = ', max_iters
+    print
+
+    Acell, coords_hs, supercell_number, supercell_index = self.myphi.generate_cell(cell)
+
+    if type(file_list_train) is str:
+      fl = open(file_list_train, 'r')
+      files=fl.readlines()
+      fl.close()
+    else:
+      files = file_list_train
+
+    for i in range(max_iters):
+    
+      unstable, energy_final, crys_final, A_final, types_final, order = self.search_for_instability(iters = 10, cell=cell, relax_unit_cell=relax_unit_cell, typesfixed = None, types_fraction=types_fraction)
+
+      print 'unstable', unstable
+      print 'energy_final',energy_final
+      print 'crys_final'
+      print crys_final
+      print 'A_final'
+      print A_final
+      print 'types_final'
+      print types_final
+      print 'order'
+      print order
+
+      print 'coords_hs'
+      print coords_hs
+
+      print 'starting line search'
+      print
+      
+      
+      if unstable == True:
+
+        
+        #line search for maximum of energy along search direction
+        LAM =[]
+        ENERGY =  []
+        ENERGY_order =  []
+        for step,lam in enumerate(np.arange(0,10,0.25)):
+
+          A = (A_final - Acell)*lam + Acell
+          coords = (crys_final - coords_hs)*lam + coords_hs
+
+          print 'LAM'
+          print 'A'
+          print A
+          print 'coords'
+          print coords
+          print 'types_final'
+          print types_final
+          print 'cell'
+          print cell
+          print
+          
+          energy, forces, stress = self.calc_energy_u(A, coords, types_final, cell=cell)
+          energy_o, forces_o, stress_o = self.calc_energy_u(A, coords, types_final, cell=cell,order=order)
+
+            
+          ENERGY.append(energy)
+          ENERGY_order.append(energy_o)
+          LAM.append(lam)
+
+          
+          if abs(lam ) < 1e-5:
+            energy0 = energy
+            energy_o_0 = energy_o
+
+          fall = (energy - energy0)
+          fanh = (energy_o - energy_o_0)
+          fharm = fall - fanh
+            
+          if step > 1 and abs(fharm)*0.25 < abs(fanh) : #if anharmonic energy is 25% of harmonic energy
+            print 'we pick this one'
+            break
+        
+          print 'lam energy ', lam, energy, energy_o, fall, fanh, fharm
+
+          
+
+          
+        max_ind = len(LAM)-1
+        if max_ind == 0: #max at zero means there is an instability directly in hs structure or we didn't make lam big enough
+          max_ind = 1
+#        else:
+#          emax = ENERGY[max_ind]
+#          if emax >  0.5:
+#            for ii,e in enumerate(ENERGY):
+#              if e > 0.5:
+#                max_ind = ii
+#                break
+        print
+        print 'we choose lam energy', max_ind
+        print LAM[max_ind], ENERGY[max_ind]
+#        exit()
+
+        print
+        lam=LAM[max_ind]
+        A = (A_final - Acell)*lam + Acell
+        coords = (crys_final - coords_hs)*lam + coords_hs
+
+
+        outstr = self.make_outstr(A,coords,types_final)
+
+        rancorrectly, outputfile = self.run_dft(DFT_function, dummy_input_file, outstr, mc_start + i, directory=directory)      
+
+        if rancorrectly:
+          newfile = [outputfile+' 1.0 '+ str(cell[0]) + ' '+ str(cell[1]) + ' ' + str(cell[2])  ]
+          files += newfile
+          ncalc_new = self.load_filelist(newfile,add=True) #we add to file list instead of overwriting to save time
+          t = self.do_repair
+          self.do_repair=False
+          self.do_all_fitting() #refit
+          self.do_repair=t
+          
+          e,f,s,er,fr,sr = self.calc_energy_qe_output_list(newfile)
+          for e,f,er,fr in zip(e,f,er,fr):
+            print 'Energy POSTDICTION ', e, er, e-er
+            print 'Forces POSTDICTION ', np.max(np.abs(f.flatten()-fr.flatten())), np.max(np.abs(fr.flatten()))
+
+        
+      elif unstable == False:
+        
+        print 'recursive_instabilty no instability found, iteration ', i
+        print 'stopping'
+        print 
+        return files
+
+    if unstable == True:
+        print 'warning recursive_instabilty still unstable after max_iters is done'
+        return files
+        print 
+      
+      
+  def make_outstr(self,A,coords,types):
+
+      outstr = ''
+      outstr +=  'ATOMIC_POSITIONS crystal\n'
+
+      nat = coords.shape[0]
+      for at in range(nat):
+#        print at, len(types)
+        if type(types[at]) is str:
+          outstr +=  types[at].strip('1').strip('2').strip('3') + '\t'  + str(coords[at,0]) + '   ' + str(coords[at,1]) + '   ' + str(coords[at,2])+'\n'
+        else:
+          outstr +=  self.myphi.reverse_types_dict[int(round(types[at]))].strip('1').strip('2').strip('3') + '\t'  + str(coords[at,0]) + '   ' + str(coords[at,1]) + '   ' + str(coords[at,2])+'\n'            
+      outstr +=  'CELL_PARAMETERS bohr\n'
+      for i in range(3):
+        outstr +=  str(A[i,0]) + '  ' + str(A[i,1]) + '  ' + str(A[i,2])+'\n'
+      return outstr
+
+
+  def set_repair(self,cell=[]):
+
+    self.do_repair = True
+    self.repaircell = cell
+  
+  def repair_instability(self,cell=[], max_iters=5, typesfixed = None, relax_unit_cell=False, types_fraction=-1):
+    
+    if cell == []:
+      cell = copy.copy(self.myphi.supercell)
+    print
+    print 'running recursive_instabilty, maxiter = ', max_iters
+    print
+
+    Acell, coords_hs, supercell_number, supercell_index = self.myphi.generate_cell(cell)
+    nat  = coords_hs.shape[0]
     
 
+    for i in range(max_iters):
+    
+      unstable, energy_final, crys_final, A_final, types_final, order = self.search_for_instability(iters = 10, cell=cell, relax_unit_cell=relax_unit_cell, typesfixed = None, types_fraction=types_fraction)
 
-      #run montecarlo in structure generation [3000,0,0] mode at temperature K
-      energies, struct_all, strain_all, cluster_all, step_size, outstr = self.run_mc(A_start, C_start, T_start, [mc_steps,0,0], temperature ,0.0, [.05, .01], update_type,report_freq = 10, cell=mc_cell)
-      #now we have the new structure in outstr, we have to make an input file and do a DFT calculation
+      
+      if unstable == True:
+
+        print 'instability found, iter ', i, ' trying to fix'
+        
+        types = []
+        for t in types_final:
+          if type(t) is str:
+            types.append(t)
+          else:
+            types.append(self.myphi.reverse_types_dict[int(round(t))])
+
+        print 'instabilty types', types
+                     
+        distorted = Atoms(scaled_positions=crys_final,
+                  symbols=types,
+                  cell=A_final,
+                  forces=np.zeros((nat,3),dtype=float),
+                  stress=np.zeros((3,3),dtype=float),
+                  energy=0.0)
 
 
+        #        distorted.printer()
+#        print
+        ncalc_new = self.load_filelist([[distorted, 0.0]],add=True, simpleadd = True) #we add to file list with zero weight
+        self.set_ineq_constraint([len(self.myphi.energy)-1])
+        self.myphi.oldsupport=True
+
+        t=self.do_repair
+        self.do_repair=False #this creates in inf loop unless we set to false
+        self.do_all_fitting(order=order) #refit
+        self.do_repair=t
+        
+        self.myphi.oldsupport=False
+        
+      else:
+        break
+
+    if unstable == False:
+      print 'Currently no instabilty. Hooray!'
+    else:
+      print 'warning, instability still detected'
+      
+#################################
+
+  def repair_instability2(self,cell=[], max_iters=50, typesfixed = None, relax_unit_cell=False, types_fraction=-1):
+    
+    if cell == []:
+      cell = copy.copy(self.myphi.supercell)
+    print
+    print 'running recursive_instabilty2, fractions, maxiter = ', max_iters
+    print
+
+    Acell, coords_hs, supercell_number, supercell_index = self.myphi.generate_cell(cell)
+    nat  = coords_hs.shape[0]
+    
+
+    for i in range(max_iters):
+    
+      unstable, energy_final, crys_final, A_final, types_final, order = self.search_for_instability(iters = 10, cell=cell, relax_unit_cell=relax_unit_cell, typesfixed = None, types_fraction=types_fraction)
+
+      
+      if unstable == True:
+
+        print 'instability found, iter ', i, ' trying to fix'
+        
+        types = []
+        for t in types_final:
+          if type(t) is str:
+            types.append(t)
+          else:
+            types.append(self.myphi.reverse_types_dict[int(round(t))])
+
+        print 'instabilty types', types
+                     
+        distorted = Atoms(scaled_positions=crys_final,
+                  symbols=types,
+                  cell=A_final,
+                  forces=np.zeros((nat,3),dtype=float),
+                  stress=np.zeros((3,3),dtype=float),
+                  energy=0.0)
+
+        for f in np.arange(self.fraction, 1.00000001, 0.01):
+          energy, forces, stress = self.calc_energy(A_final, crys_final, types_final ,order=order, fraction=f)
+
+
+          print 'insta energy ', f, energy
+          if energy > -1e-6:
+            self.fraction = f + 5e-3
+            break
+
+        print 'trying self.fraction = ', self.fraction
+        #        distorted.printer()
+#        print
+#        ncalc_new = self.load_filelist([[distorted, 0.0]],add=True, simpleadd = True) #we add to file list with zero weight
+#        self.set_ineq_constraint([len(self.myphi.energy)-1])
+#        self.myphi.oldsupport=True
+#        self.do_all_fitting(order=order) #refit
+#        self.myphi.oldsupport=False
+        
+      else:
+        break
+    print 'final fraction = ', self.fraction
+    
+    if unstable == False:
+      print 'Currently no instabilty. Hooray!'
+    else:
+      print 'warning, instability still detected'
+      
+################################################################
+
+      
+  def run_dft(self, DFT_function, dummy_input_file, outstr, mc_step, directory='./'):
 #remove vacancies
       outstr2 = ''
       for line in outstr.split('\n'):
@@ -2109,12 +3950,15 @@ class spring_cluster:
               else:
                   filout.write(line)
 
-
+                  
       filin.close()
       filout.close()
+      print 'before energy calc_qe_input '
+      sys.stdout.flush()
 
-#      e,f,s = self.calc_energy_qe_input(directory+dummy_input_file+'.'+str(mc_step))
-#      print 'energy ', e
+      e,f,s = self.calc_energy_qe_input(directory+dummy_input_file+'.'+str(mc_step))
+      print 'energy calc_qe_input ', e
+      sys.stdout.flush()
 
 #      fil=open(directory+dummy_input_file+'.'+str(mc_step),'r')
 #      C1, A1, T1 = qe_manipulate.generate_supercell(fil, [1,1,1], [])
@@ -2127,59 +3971,20 @@ class spring_cluster:
       try:
 
         retcode, outfile = DFT_function(directory+dummy_input_file, mc_step)
-        
-      #put the supercell back to the fitting supercell instead of the MC supercell
-      #      self.myphi.set_supercell(supercell)
-        self.myphi.set_supercell(self.supercell_orig)
-
 
         print 'PREDICTION of new DFT result'
-#        e,f,s,er,fr,sr = self.calc_energy_qe_file(outfile)
         e,f,s,er,fr,sr = self.calc_energy_qe_output_list([outfile])
-
         if e[-1] == -99999999:
           raise OSError
-
         for e,f,er,fr in zip(e,f,er,fr):
           print 'Energy PREDICTION ', e, er, e-er
           print 'Forces PREDICTION ', np.max(np.abs(f.flatten()-fr.flatten())), np.max(np.abs(fr.flatten()))
-
-
-        newfile = [directory+dummy_input_file+'.'+str(mc_step)+'.out 0.1 '+ str(mc_cell[0]) + ' '+ str(mc_cell[1]) + ' ' + str(mc_cell[2])  ]
-        files += newfile
-
-#          rint = 't'+str(random.randint(1,1000))
-#          call('ls '+directory+dummy_input_file+'*out > '+rint, shell=True)
-#          fin = open(rint, 'r')
-#          fout = open(rint+'.1', 'w')
-#          for line in fin:
-#              sp = line.split()
-#              fout.write(sp[0] + ' 0.01  \n') #we weight new structures less
-#          fin.close()
-#          fout.close()
-
-#          call('cat '+file_list_train + ' '  + rint + '.1  > ' + file_list_train+'.new', shell=True)
-  #        call('cat '+rint + ' '  + file_list + ' > ' + file_list+'.new', shell=True)
-#          call('rm  '+rint , shell=True)
-
+        
       except OSError as e:
         print 'warning, DFT raised an error, trying to continue'
-        print e
-#        exit()
 
+        return False, directory+dummy_input_file+'.'+str(mc_step)+'.out'
+        
+      return True, directory+dummy_input_file+'.'+str(mc_step)+'.out'
 
-      #now we have new training data, we refit model
-      ncalc_new = self.load_filelist(newfile,add=True) #we add to file list instead of overwriting to save time
-      if ncalc_new > 0:
-        self.do_all_fitting()
-
-        print 'NEW CALCULATION of new DFT result, insample'
-#      e,f,s,er,fr,sr = self.calc_energy_qe_file(outfile)
-        e,f,s,er,fr,sr = self.calc_energy_qe_output_list([outfile])
-        for e,f,er,fr in zip(e,f,er,fr):
-          print 'Energy POSTDICTION ', e, er, e-er
-          print 'Forces POSTDICTION ', np.max(np.abs(f.flatten()-fr.flatten())), np.max(np.abs(fr.flatten()))
-
-
-
-    return files
+####################################################    

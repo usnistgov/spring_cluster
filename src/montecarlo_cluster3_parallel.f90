@@ -20,7 +20,7 @@ end subroutine init_random_seed
 
   subroutine montecarlo_cluster(interaction_mat, interaction_len_mat, cluster_sites, supercell_add, atoms_nz, strain, coords, &
 coords_ref, Aref, nonzero, phi_arr, UTYPES, magnetic_mode, vacancy_mode, nsteps, &
-rand_seed, beta,chem_pot,  dim_max,ncluster,  &
+rand_seed, beta,chem_pot, magnetic_aniso,  dim_max,ncluster,  &
 ncells, nat , nnonzero, dim2,sa1,sa2, len_mat,dim_u, energy, UTYPES_new)
 
 !main montecarlo code 
@@ -42,7 +42,7 @@ ncells, nat , nnonzero, dim2,sa1,sa2, len_mat,dim_u, energy, UTYPES_new)
 
     integer :: ncluster
     integer :: cluster_sites(ncluster)
-    double precision :: chem_pot
+    double precision :: chem_pot, magnetic_aniso
     integer :: nnonzero,ncells, s, nat, dim_s, dim_k, dim2
     integer :: nonzero(dim2,nnonzero)
     integer :: supercell_add(sa1,sa2)
@@ -75,7 +75,7 @@ ncells, nat , nnonzero, dim2,sa1,sa2, len_mat,dim_u, energy, UTYPES_new)
     double precision :: u(nat,ncells,3)
 
 
-
+    double precision :: uu, vv
 
     double precision :: coords(nat,ncells,3)
 !    double precision :: coords2(nat,ncells,3)
@@ -200,24 +200,25 @@ ncells, nat , nnonzero, dim2,sa1,sa2, len_mat,dim_u, energy, UTYPES_new)
           endif
        elseif (magnetic_mode == 2) then
 
-          if (s1 == 1) then !we do not rotate the spin in the first cell, it only points in the +/- z direction. this fixes a global so(3) symmetry that is otherwise a pain.
-             !                if (.False.) then !we do not rotate the spin in the first cell, it only points in the +/- z direction. this fixes a global so(3) symmetry that is otherwise a pain.
-             call random_number(theta) 
-             if (theta > 0.5) then
-                theta = 0.0
-                phi = 0.0
-             else
-                theta = pi
-                phi = 0.0
-             endif
+!          if (s1 == 1) then !we do not rotate the spin in the first cell, it only points in the +/- z direction. this fixes a global so(3) symmetry that is otherwise a pain.
+!             !                if (.False.) then !we do not rotate the spin in the first cell, it only points in the +/- z direction. this fixes a global so(3) symmetry that is otherwise a pain.
+!             call random_number(theta) 
+!             if (theta > 0.5) then
+ !               theta = 0.0
+  !              phi = 0.0
+   !          else
+   !             theta = pi
+    !            phi = 0.0
+     !        endif
 
-          elseif (s1 > 1) then
-             call random_number(theta) 
-             call random_number(phi)
+  !        elseif (s1 > 1) then
+          call random_number(uu) 
+          call random_number(vv)
 
-             theta = theta *  pi
-             phi = phi * pi * 2.0
-          endif
+          phi = uu * 2.0 * pi
+          theta = acos(2.0 * vv - 1.0)
+
+!          endif
 
           !                x = sin(theta)*cos(phi) 
           !                y = sin(theta)*sin(phi)
@@ -229,8 +230,13 @@ ncells, nat , nnonzero, dim2,sa1,sa2, len_mat,dim_u, energy, UTYPES_new)
           UTYPES_new((atom-1)*ncells + s1,4) = sin(theta)*sin(phi)
           UTYPES_new((atom-1)*ncells + s1,5) = cos(theta)
 
-          denergy = (-UTYPES_new((atom-1)*ncells + s1,5) + UTYPES_new((atom-1)*ncells + s1,5))*chem_pot
+          denergy = (-UTYPES_new((atom-1)*ncells + s1,5) + UTYPES((atom-1)*ncells + s1,5))*chem_pot
 
+          if (abs(magnetic_aniso + 999.0) > 1e-5) then
+
+             denergy = denergy + magnetic_aniso * ( (1 - UTYPES_new((atom-1)*ncells + s1,5)**2) - (1 - UTYPES((atom-1)*ncells + s1,5)**2))
+          endif
+          
        else !cluster mode
 
           if ( abs(UTYPES_new((atom-1)*ncells + s1,1) - 1.0) < 1.0e-5) then

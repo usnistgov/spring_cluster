@@ -1643,7 +1643,7 @@ static const char __pyx_k_supercell_index[] = "supercell_index";
 static const char __pyx_k_dist_array_R_prim[] = "dist_array_R_prim";
 static const char __pyx_k_make_dist_array_fortran[] = "make_dist_array_fortran";
 static const char __pyx_k_ndarray_is_not_C_contiguous[] = "ndarray is not C contiguous";
-static const char __pyx_k_data_kfg_codes_sc_testing_src_m[] = "/data/kfg/codes/sc_testing/src/make_dist_array.pyx";
+static const char __pyx_k_users_kfg_codes_spring_cluster[] = "/users/kfg/codes/spring_cluster/src/make_dist_array.pyx";
 static const char __pyx_k_numpy_core_multiarray_failed_to[] = "numpy.core.multiarray failed to import";
 static const char __pyx_k_unknown_dtype_code_in_numpy_pxd[] = "unknown dtype code in numpy.pxd (%d)";
 static const char __pyx_k_Format_string_allocated_too_shor[] = "Format string allocated too short, see comment in numpy.pxd";
@@ -1674,7 +1674,6 @@ static PyObject *__pyx_n_s_coords_super;
 static PyObject *__pyx_n_s_coords_super2;
 static PyObject *__pyx_n_s_copy;
 static PyObject *__pyx_n_s_d;
-static PyObject *__pyx_kp_s_data_kfg_codes_sc_testing_src_m;
 static PyObject *__pyx_n_s_dd;
 static PyObject *__pyx_n_s_dist;
 static PyObject *__pyx_n_s_dist_array;
@@ -1722,6 +1721,7 @@ static PyObject *__pyx_n_s_test;
 static PyObject *__pyx_n_s_theirgauss;
 static PyObject *__pyx_n_s_time;
 static PyObject *__pyx_kp_u_unknown_dtype_code_in_numpy_pxd;
+static PyObject *__pyx_kp_s_users_kfg_codes_spring_cluster;
 static PyObject *__pyx_n_s_x;
 static PyObject *__pyx_n_s_y;
 static PyObject *__pyx_n_s_z;
@@ -6067,7 +6067,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_coords_super2, __pyx_k_coords_super2, sizeof(__pyx_k_coords_super2), 0, 0, 1, 1},
   {&__pyx_n_s_copy, __pyx_k_copy, sizeof(__pyx_k_copy), 0, 0, 1, 1},
   {&__pyx_n_s_d, __pyx_k_d, sizeof(__pyx_k_d), 0, 0, 1, 1},
-  {&__pyx_kp_s_data_kfg_codes_sc_testing_src_m, __pyx_k_data_kfg_codes_sc_testing_src_m, sizeof(__pyx_k_data_kfg_codes_sc_testing_src_m), 0, 0, 1, 0},
   {&__pyx_n_s_dd, __pyx_k_dd, sizeof(__pyx_k_dd), 0, 0, 1, 1},
   {&__pyx_n_s_dist, __pyx_k_dist, sizeof(__pyx_k_dist), 0, 0, 1, 1},
   {&__pyx_n_s_dist_array, __pyx_k_dist_array, sizeof(__pyx_k_dist_array), 0, 0, 1, 1},
@@ -6115,6 +6114,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_theirgauss, __pyx_k_theirgauss, sizeof(__pyx_k_theirgauss), 0, 0, 1, 1},
   {&__pyx_n_s_time, __pyx_k_time, sizeof(__pyx_k_time), 0, 0, 1, 1},
   {&__pyx_kp_u_unknown_dtype_code_in_numpy_pxd, __pyx_k_unknown_dtype_code_in_numpy_pxd, sizeof(__pyx_k_unknown_dtype_code_in_numpy_pxd), 0, 1, 0, 0},
+  {&__pyx_kp_s_users_kfg_codes_spring_cluster, __pyx_k_users_kfg_codes_spring_cluster, sizeof(__pyx_k_users_kfg_codes_spring_cluster), 0, 0, 1, 0},
   {&__pyx_n_s_x, __pyx_k_x, sizeof(__pyx_k_x), 0, 0, 1, 1},
   {&__pyx_n_s_y, __pyx_k_y, sizeof(__pyx_k_y), 0, 0, 1, 1},
   {&__pyx_n_s_z, __pyx_k_z, sizeof(__pyx_k_z), 0, 0, 1, 1},
@@ -6303,7 +6303,7 @@ static int __Pyx_InitCachedConstants(void) {
   __pyx_tuple__18 = PyTuple_Pack(32, __pyx_n_s_coords_super, __pyx_n_s_Acell_super, __pyx_n_s_nat, __pyx_n_s_natsuper, __pyx_n_s_supercell, __pyx_n_s_supercell_index, __pyx_n_s_coords_super2, __pyx_n_s_ncells, __pyx_n_s_d, __pyx_n_s_a, __pyx_n_s_b, __pyx_n_s_dist_array, __pyx_n_s_dist_array_R, __pyx_n_s_dist_array_R_prim, __pyx_n_s_dist_array_prim, __pyx_n_s_other_coords, __pyx_n_s_nsym_arr, __pyx_n_s_sym_arr, __pyx_n_s_dmin, __pyx_n_s_x, __pyx_n_s_y, __pyx_n_s_z, __pyx_n_s_dist, __pyx_n_s_dd, __pyx_n_s_R, __pyx_n_s_XYZ, __pyx_n_s_c, __pyx_n_s_dosym, __pyx_n_s_moddict, __pyx_n_s_moddict_prim, __pyx_n_s_sym, __pyx_n_s_i); if (unlikely(!__pyx_tuple__18)) __PYX_ERR(0, 36, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__18);
   __Pyx_GIVEREF(__pyx_tuple__18);
-  __pyx_codeobj__19 = (PyObject*)__Pyx_PyCode_New(7, 0, 32, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__18, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_data_kfg_codes_sc_testing_src_m, __pyx_n_s_make_dist_array, 36, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__19)) __PYX_ERR(0, 36, __pyx_L1_error)
+  __pyx_codeobj__19 = (PyObject*)__Pyx_PyCode_New(7, 0, 32, 0, 0, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__18, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_users_kfg_codes_spring_cluster, __pyx_n_s_make_dist_array, 36, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__19)) __PYX_ERR(0, 36, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
