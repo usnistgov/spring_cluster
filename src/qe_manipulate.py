@@ -1336,7 +1336,13 @@ def generate_supercell(fullfil,supercell, outname=None, A=None, coords=None, coo
 
     if A is None:
         A, atoms, coords,coords_type, masses, kpoints  = load_atomic_pos(fullfil, return_kpoints=True)
-    
+
+    print "A"
+    print A
+    print "coords"
+    print coords
+    print coords_type
+        
     nat = len(coords_type)
     print 'nat ' + str(nat)
     coords_cart = np.dot(coords,A)
@@ -1826,7 +1832,7 @@ def generate_all_supercell_nonorth(inputfile, kgrid):
                            pbc=True)
 
 
-    dataset = spglib.get_symmetry_dataset(mystruct, symprec=0.2)
+    dataset = spglib.get_symmetry_dataset(mystruct, symprec=0.5)
     print 'spacegroup'
     print dataset['number']
     print dataset['international']

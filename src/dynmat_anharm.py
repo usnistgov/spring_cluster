@@ -213,7 +213,7 @@ class dyn:
         
 
 ##
-    def dos(self, N, smear, nstep, velocity):
+    def dos(self, N, smear, nstep, velocity, dos2=False):
         [qlist,wq] = self.generate_qpoints_simple(N[0],N[1],N[2])
         
         if self.verbosity == 'High':
@@ -236,12 +236,23 @@ class dyn:
         maxf = np.max(np.max(freq))
         print 'min f = ' + str(minf)
         print 'max f = ' + str(maxf)
+
         de = ((maxf*1.25) - (minf - 20))/float(nstep)
+        if dos2:
+            de = ((2.0*maxf*1.25) - (minf - 20))/float(nstep)
+            
         print 'de ' + str(de)
         DOS = []
 #        print 'DOS'
         sumdos = 0.0
         sum_v2_dos = 0.0
+
+        factor = 1.0
+        if dos2:
+            factor = 2.0
+
+        freq = np.array(freq) * factor
+        
         for step in range(nstep):
             e =  (minf-20)  + de * float(step)
 
@@ -1709,14 +1720,14 @@ class dyn:
             hk2 = ((hk + np.conjugate(hk.transpose()))/2.0) * self.massmat
             (evals,vect) = np.linalg.eigh(hk2)
             
-            print "evals vects"
-            for i in range(self.nat*3):
-                print i
-                print evals[i]
-                print abs(evals[i])**0.5 * self.ryd_to_cm
-                print "vect"
-                print vect[:,i]
-                print "--"
+#            print "evals vects"
+#            for i in range(self.nat*3):
+#                print i
+#                print evals[i]
+#                print abs(evals[i])**0.5 * self.ryd_to_cm
+#                print "vect"
+#                print vect[:,i]
+#                print "--"
 
 
             if tprint == False:
