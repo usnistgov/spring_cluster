@@ -10,6 +10,7 @@ import math
 import time
 from phi_class import phi
 import copy as copy
+from dynmat_anharm import dyn
 
 from scipy import optimize
 import scipy as sp
@@ -737,7 +738,19 @@ class spring_cluster:
       print
       print phi_ind_dim
       print
- 
+
+#      if dh == self.dim_hash([2,0]):
+#        print "kfg xxxxxxxxxxxxxxxxxxx"
+#        phi_ind_dim[0] = 0.0
+#        phi_ind_dim[1] = 0.0
+#        phi_ind_dim[2] = 0.0
+#        phi_ind_dim[3] = 0.0
+#        phi_ind_dim[5] = 0.0
+        #        phi_ind_dim[4] = 1.0
+        
+#        print "new phi"
+#        print phi_ind_dim
+        
       ccount += ca
 
       #this takes the indepentent phi values and reconstructs the full phi matrix
@@ -1794,7 +1807,7 @@ class spring_cluster:
 
     return Fvib
 
-  def dos(self,qpoints,  T=10, nsteps=400, filename='dos.csv', filename_plt='dos.pdf',show=False, spin_config=None):
+  def dos(self,qpoints,  T=10, nsteps=400, filename='dos.csv', filename_plt='dos.pdf',show=False, spin_config=None, dos2=False):
     #plots the density of states.  if q is a scalar, density is qxqxq. otherwise 
     #use set of [q1, q2, q3]. nsteps is the number of energy intervals,  filename is output, show outputs to screen
 
@@ -1813,7 +1826,8 @@ class spring_cluster:
     if not hasattr(qpoints, "__len__"): #something with len
       qpoints = [qpoints,qpoints,qpoints]
 
-    DOS, freq = self.myphi.dyn.dos(qpoints,T, nsteps,  False)
+      
+    DOS, freq = self.myphi.dyn.dos(qpoints,T, nsteps,  False, dos2=dos2)
     T = self.myphi.dyn.debyeT(DOS)  
 
     DOS = np.array(DOS,dtype=float)
@@ -1852,16 +1866,31 @@ class spring_cluster:
       else:
         print 'error magnon_band_structure, wrong calculation type'
         return 1
-      
-      freq = self.myphi.solve_magnons(qpoints_mat, spin_config, phi, nz, units=units)
+
+      if units=="cm-1":
+        units_tmp="meV"
+      else:
+        units_tmp=units
+        
+      freq = self.myphi.solve_magnons(qpoints_mat, spin_config, phi, nz, units=units_tmp)
 
     else:
       print 'error magnon'
       return 1
     
     plt.clf()
+
+
     
     fig, ax = plt.subplots()
+    if units=='meV':
+      plt.ylabel('Energy (meV)')
+    elif units == 'cm-1':
+      plt.ylabel('Energy (cm-1)')
+      freq = freq / 0.12398
+    else:
+      plt.ylabel('Energy (a.u.)')      
+
     plt.plot(freq, 'b')
     
     x1,x2,y1,y2 = plt.axis()
@@ -1880,10 +1909,6 @@ class spring_cluster:
     ax.set_xticklabels([])
     ax.set_xticks([])
     plt.xlabel('Wave Vector', labelpad=20)
-    if units=='meV':
-      plt.ylabel('Energy (meV)')
-    else:
-      plt.ylabel('Energy (a.u.)')      
       
     np.savetxt(filename, freq)
     np.savetxt(filename+'.qpts', qpoints_mat)
@@ -1892,9 +1917,79 @@ class spring_cluster:
     if show:
       plt.show()
       
+
+  def gaussian(self,x, mu, smear):
+    ret = 1.0/(smear*(2*np.pi)**0.5) * np.exp(-(x-mu)**2/(2*smear**2))
+    return ret
+
+      
+  def magnon_dos(self,spin_config, qgrid=[8,8,8], T=10.0, nsteps=400, filename='magnon.dos.csv', filename_plt='magnon.dos.pdf',show=False, units='meV', dos2=False):
+
+    self.myphi.dyn = dyn()
     
+    [qlist,wq] = self.myphi.dyn.generate_qpoints_simple(qgrid[0],qgrid[1],qgrid[2])
+    qlist = np.array(qlist)
+    if self.myphi.magnetic == 1 or self.myphi.magnetic == 2:
+      if [2,0] in self.dims:
+        dh=self.dim_hash([2,0])
+        phi = self.phi_nz[dh]
+        nz = self.nz[dh]
+      else:
+        print 'error magnon_band_structure, wrong calculation type'
+        return 1
 
+    if units == "cm-1":
+      units_tmp = "meV"
+    else:
+      units_tmp = units
+        
+    
+    freq = self.myphi.solve_magnons(qlist, spin_config, phi, nz, units=units_tmp)
 
+    plt.clf()
+    if units=='meV':
+      plt.xlabel('Energy (meV)')
+    elif units == 'cm-1':
+      plt.xlabel('Energy (cm-1)')
+      freq = freq / 0.12398
+    else:
+      plt.xlabel('Energy (a.u.)')      
+
+    if dos2:
+      freq = freq * 2.0
+      plt.ylabel("DOS 2")
+    else:
+      plt.ylabel("DOS")
+
+      
+    minf = np.min(np.min(freq))
+    maxf = np.max(np.max(freq))
+
+    minf = min(minf, -1.0)
+    maxf = maxf * 1.15
+
+    print 'min f = ' + str(minf)
+    print 'max f = ' + str(maxf)
+
+    energies = np.linspace(minf, maxf, nsteps)
+    
+    DOS = np.zeros((nsteps, 2),dtype=float)
+    DOS[:,0] = energies
+
+    for i in range(nsteps):
+      en = energies[i]
+      g = np.sum( map(lambda x: self.gaussian(x,en,T), freq)) * wq
+      DOS[i,1] = g
+
+    de = energies[1]-energies[0]
+
+    print "integral DOS ", np.sum(DOS[:,1]*de)
+    plt.plot(DOS[:,0], DOS[:,1], "-b")
+
+    plt.savefig(filename_plt)
+    np.savetxt(filename, DOS)
+
+    
   def get_qpoints(self, qpoints, nsteps=20):
 
     names = []
