@@ -1853,7 +1853,7 @@ class spring_cluster:
     print 'magnetic_anisotropy', val
 
     
-  def magnon_band_structure(self,spin_config, qpoints, nsteps=20, filename='magnon.csv', filename_plt='magnon.pdf',show=False, units='meV'):
+  def magnon_band_structure(self,spin_config, qpoints, nsteps=20, filename='magnon.csv', filename_plt='magnon.pdf',show=False, units='meV', aniso=None):
 
     
     names, numbers, qpoints_mat = self.get_qpoints(qpoints, nsteps=nsteps)
@@ -1872,7 +1872,7 @@ class spring_cluster:
       else:
         units_tmp=units
         
-      freq = self.myphi.solve_magnons(qpoints_mat, spin_config, phi, nz, units=units_tmp)
+      freq = self.myphi.solve_magnons_new(qpoints_mat, spin_config, phi, nz, units=units_tmp, aniso=aniso)
 
     else:
       print 'error magnon'
@@ -1923,7 +1923,7 @@ class spring_cluster:
     return ret
 
       
-  def magnon_dos(self,spin_config, qgrid=[8,8,8], T=10.0, nsteps=400, filename='magnon.dos.csv', filename_plt='magnon.dos.pdf',show=False, units='meV', dos2=False):
+  def magnon_dos(self,spin_config, qgrid=[8,8,8], T=10.0, nsteps=400, filename='magnon.dos.csv', filename_plt='magnon.dos.pdf',show=False, units='meV', dos2=False, aniso=None):
 
     self.myphi.dyn = dyn()
     
@@ -1944,7 +1944,7 @@ class spring_cluster:
       units_tmp = units
         
     
-    freq = self.myphi.solve_magnons(qlist, spin_config, phi, nz, units=units_tmp)
+    freq = self.myphi.solve_magnons_new(qlist, spin_config, phi, nz, units=units_tmp, aniso=aniso)
 
     plt.clf()
     if units=='meV':

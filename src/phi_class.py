@@ -708,6 +708,258 @@ class phi:
     print 'done magnon calc, unit', units
     
     return meV
+
+  def solve_magnons_new(self, qpoint_mat, spins, phi, nonzero, units='meV', aniso=None):
+
+    if self.magnetic == 0:
+      print 'ERROR, magnons for non-magnetic fitting requested'
+      return 1
+
+    print "phi ", phi[:]
+
+    correspond, vacancies = self.find_corresponding(self.coords_super, self.coords_super)
+    us0 = np.zeros((self.nat, self.ncells,3),dtype=float)
+    for [c0,c1, RR] in correspond:
+      sss = self.supercell_index[c1]
+      us0[c1%self.nat,sss,:] = np.dot(self.coords_super[c1,:]-RR ,self.Acell_super)
+#      us[c1%self.nat,sss,:] = self.coords_super[c1,:]-RR
+
+
+    spin_mag = np.abs(spins)
+    A = np.zeros(self.nat,dtype=float)
+    
+    print '--------'
+    print 'magnons, input spin_mag'
+    print spin_mag
+    
+    active = []
+    for i in range(spin_mag.shape[0]):
+      if spin_mag[i] > 1e-5:
+        active.append(i)
+        A[i] = spins[i]/spin_mag[i]
+        
+      elif spin_mag[i] < 1e-5:        
+        spin_mag[i] = 100000000000.0   #avoid division by zero issues
+        A[i] = 0.0
+        
+
+
+    nat = len(active)
+
+    print 'A (direction)'
+    print A
+    print '--------'
+    print 'active sites'
+    print active
+    print
+    
+    qnum = qpoint_mat.shape[0]
+    M_q = np.zeros((qnum, self.nat, self.nat),dtype=complex)
+    J_q = np.zeros((qnum, self.nat, self.nat),dtype=complex)
+
+    J_0 = np.zeros((qnum, self.nat, self.nat),dtype=complex)
+    M_0 = np.zeros((self.nat, self.nat),dtype=complex)
+
+
+    M_active = np.zeros((nat, nat),dtype=float)
+    omega = np.zeros((qnum, nat*2),dtype=float)
+
+    
+    B = 2 * np.pi * np.linalg.inv(self.Acell)
+    B = B.T
+
+    atoms = np.zeros(2,dtype=int)
+    ijk = np.zeros(2,dtype=int)
+    ssx = np.zeros(3,dtype=int)
+    cell = np.zeros(3,dtype=int)
+
+    H2 = np.zeros((2*nat, 2*nat),dtype=complex)
+
+
+    qmat = np.zeros((2*nat, 2*nat),dtype=float)
+    for i in range(nat):
+      qmat[i,i] = 1.0
+      qmat[i+nat, i+nat] = -1.0
+
+
+
+    if self.magnetic_anisotropy != -999:
+      print
+      print 'magnetic_anisotropy', self.magnetic_anisotropy
+      print
+
+    
+    for count, nq in enumerate(range(qnum)):
+      q = qpoint_mat[nq,:]
+      qcart = np.dot(q, B)
+      
+      for nz in range(nonzero.shape[0]):
+        atoms[:] = nonzero[nz,0:2]
+  #      ijk[:] =   nonzero[nz,2:4]
+        ssx[:] =   nonzero[nz,2:2+3]
+        cell[:] = ssx
+        cell[0] = cell[0] % self.supercell[0]
+        cell[1] = cell[1] % self.supercell[1]
+        cell[2] = cell[2] % self.supercell[2]
+        na=atoms[1]
+        nb=atoms[0]
+        sa=0
+        sb=self.supercell_index_f(cell)
+        nsym = float(len(self.moddict_prim[na*self.nat*self.ncells**2 + sa*self.ncells*self.nat + nb*self.ncells + sb]))
+#        nsym = 1.0
+        for m_count,m in enumerate(self.moddict_prim[na*self.nat*self.ncells**2 + sa*self.ncells*self.nat + nb*self.ncells + sb]):
+
+          cellR = np.dot(m, self.Acell_super)
+
+
+          cart = us0[na,0,:]
+          cartR = us0[nb,sb,:] - cellR
+
+          dcart = cart[:] - cartR[:]
+
+#          print qcart, dcart, 'd',np.sum(dcart**2)**0.5, np.cos(np.dot(qcart, dcart)), phi[nz]
+          
+          #          J_q[nq, na, nb ] += phi[nz]/nsym * np.cos(np.dot(qcart, dcart)) / spin_mag[na] / spin_mag[nb]
+
+          if na != nb:
+            J_q[nq, na, nb ] -= phi[nz]/nsym * np.exp(1.0j * np.dot(qcart, dcart)) / spin_mag[na]**0.5 / spin_mag[nb]**0.5 * A[na] * A[nb]
+          elif na == nb:
+            J_0[nq, na, na ] -= phi[nz]/nsym * np.exp(1.0j * np.dot(qcart, dcart)) / spin_mag[na]**0.5 / spin_mag[nb]**0.5 * A[na] * A[nb]
+
+          #if na == nb:
+          #  J_0[nq, na, na ] += phi[nz]/nsym * np.exp(1.0j * np.dot(qcart, dcart)) / spin_mag[na]**0.5 / spin_mag[nb]**0.5 * A[na] * A[nb]
+
+          J_0[nq, na, na ] += phi[nz]/nsym / spin_mag[na]**0.5 / spin_mag[nb]**0.5 * A[na] * A[nb]
+
+#            print "J_0", na, nb, phi[nz]/nsym / spin_mag[na]**0.5 / spin_mag[nb]**0.5
+
+
+#        for c1, na1 in enumerate(active):
+#          J_q[nq, na1, na1 ] += self.myphi.magnetic_anisotropy / spin_mag[na1]**2 
+
+#        if nq == 0:
+
+        
+              
+#      if nq == 0:
+#        for na in range(self.nat):
+#          for nb in range(self.nat):
+#            M_0[na,na] += J_0[na,nb] * spin_mag[nb] * A[nb]
+#        if self.magnetic_anisotropy != -999:
+#          for c1, na1 in enumerate(active):
+#            M_0[na1, na1 ] += self.magnetic_anisotropy / spin_mag[na1]**2 * A[na1] * 2.0
+          
+
+#      for na in range(self.nat):
+#        for nb in range(self.nat):
+#            
+#          M_q[nq, na,nb] = M_0[na,nb] - J_q[nq,na,nb] * spin_mag[nb] * A[na]
+
+#      for c1, na1 in enumerate(active): #limit to magnetic elements only
+#        for c2, na2 in enumerate(active):
+#          M_active[c1,c2] = M_q[nq,na1,na2]
+
+      H2[:,:] = 0.0
+      for c1, na in enumerate(active):
+      #for na in range(self.nat):
+        H2[c1,c1] += J_0[nq,na,na]
+        H2[c1+nat,c1+nat] += J_0[nq, na,na]
+        #        for nb in range(self.nat):
+        for c2, nb in enumerate(active):
+
+#          if a != b:
+          H2[c1,c2+nat] += J_q[nq, na, nb ]
+          H2[c2+nat,c1] += np.conj(J_q[nq, na, nb ])
+
+      H2 = H2 / 2.0
+
+      if self.magnetic_anisotropy != -999 and not(aniso is None):
+        if aniso == "axis":
+          print "axis ", self.magnetic_anisotropy
+          for c1, na in enumerate(active):
+            H2[c1, c1 ] += self.magnetic_anisotropy / spin_mag[na] #* A[na]
+            H2[c1+nat, c1+nat ] += self.magnetic_anisotropy / spin_mag[na] #* A[na]
+
+        if aniso == "plane":
+          print "plane ", self.magnetic_anisotropy
+          for c1, na in enumerate(active):
+            H2[c1, c1+nat ] += 0.5*self.magnetic_anisotropy / spin_mag[na] #* A[na]
+            H2[c1+nat, c1 ] += 0.5*self.magnetic_anisotropy / spin_mag[na] #* A[na]
+            H2[c1, c1 ] += 0.5*self.magnetic_anisotropy / spin_mag[na] #* A[na]
+            H2[c1+nat, c1+nat ] += 0.5*self.magnetic_anisotropy / spin_mag[na] #* A[na]
+
+          
+      print "J_0"
+      for c1, na in enumerate(active):
+        for c2, nb in enumerate(active):
+          print  na, nb, J_0[nq, na,nb], J_q[nq,na,nb]
+
+#      print "J_q"
+#      print J_q[active,active]
+      
+      print "nq, ", nq , q
+      print "H2", H2
+
+      temp = np.dot( H2, qmat)
+      print "temp"
+      print temp
+      print
+
+      vals,vects = np.linalg.eig( temp)
+      
+      print "vals ", vals
+      print
+
+
+#      for c1, na1 in enumerate(active): #limit to magnetic elements only
+#        for c2, na2 in enumerate(active):
+#          M_active[c1,c2] = M_q[nq,na1,na2]
+
+
+
+#      vals,vects = np.linalg.eig(M_active)
+
+#      if count == 0:
+#        print "M_active ", count
+#        print M_active
+#        print "vals"
+#        print vals
+
+#      if sum(abs(q)) < 1e-5:
+#        print "q ", q
+#        print "M_active"
+#        print M_active
+#        print "self.magnetic_anisotropy ", self.magnetic_anisotropy, " ",  self.magnetic_anisotropy / spin_mag[na1]**2 *  2.0
+#        print "A", A
+      
+
+      omega[nq,:] = np.sort(np.abs(np.real(vals      )))
+      print "nq vals " , nq, np.sort(np.abs(np.real(vals      )))* 13.60569253 * 1000.0
+
+#    hartree_si = 4.35974394E-18
+#    hplank = 6.62606896E-34 
+        
+#    au_sec = hplank / hartree_si / (2.0 * np.pi)
+#    au_ps = au_sec * 1e12
+#    au_thz = au_ps
+
+#    c_si = 2.99792458E+8
+#    ryd_to_thz = 1.0 / au_thz / (4.0 * np.pi)
+#    ryd_to_cm = 1e10 * ryd_to_thz / c_si 
+
+
+    if units == 'meV':
+      meV  = omega * 13.60569253 * 1000.0
+    elif units == "THz":
+      meV  = omega * 13.60569253 * 1000.0   *     0.24180
+    elif units == "cm-1":
+      meV  = omega * 13.60569253 * 1000.0 *  8.06554
+    else:
+      meV = omega
+
+    print 'done magnon calc, unit', units
+    
+    return meV
   
   def load_zeff_model(self, diel, sites, types,  zstars):
 
