@@ -504,17 +504,20 @@ class phi:
     us0 = np.zeros((self.nat, self.ncells,3),dtype=float)
     for [c0,c1, RR] in correspond:
       sss = self.supercell_index[c1]
-      us0[c1%self.nat,sss,:] = np.dot(self.coords_super[c1,:]-RR ,self.Acell_super)
+#      us0[c1%self.nat,sss,:] = np.dot(self.coords_super[c1,:]-RR ,self.Acell_super)
+      us0[c1%self.nat,sss,:] = np.dot(self.coords_super[c1,:]-RR ,self.Acell)
 #      us[c1%self.nat,sss,:] = self.coords_super[c1,:]-RR
 
 
     spin_mag = np.abs(spins)
     A = np.zeros(self.nat,dtype=float)
     
-    print '--------'
-    print 'magnons, input spin_mag'
-    print spin_mag
+    #    print '--------'
+    #    print 'magnons, input spin_mag'
+    #    print spin_mag
     
+    print "solve_magnons ", qpoint_mat
+
     active = []
     for i in range(spin_mag.shape[0]):
       if spin_mag[i] > 1e-5:
@@ -537,23 +540,30 @@ class phi:
     print
     
     qnum = qpoint_mat.shape[0]
-    M_q = np.zeros((qnum, self.nat, self.nat),dtype=float)
-    J_q = np.zeros((qnum, self.nat, self.nat),dtype=float)
+#    M_q = np.zeros((qnum, self.nat, self.nat),dtype=float)
+#    J_q = np.zeros((qnum, self.nat, self.nat),dtype=float)
+#    M_active = np.zeros((nat, nat),dtype=float)
+
+    M_q = np.zeros((qnum, self.nat, self.nat),dtype=complex)
+    J_q = np.zeros((qnum, self.nat, self.nat),dtype=complex)
+    M_active = np.zeros((nat, nat),dtype=complex)
 
     J_0 = np.zeros((self.nat, self.nat),dtype=float)
     M_0 = np.zeros((self.nat, self.nat),dtype=float)
 
 
-    M_active = np.zeros((nat, nat),dtype=float)
     omega = np.zeros((qnum, nat),dtype=float)
 
     
     B = 2 * np.pi * np.linalg.inv(self.Acell)
 
+    B = np.transpose(B)
+    
     atoms = np.zeros(2,dtype=int)
     ijk = np.zeros(2,dtype=int)
     ssx = np.zeros(3,dtype=int)
     cell = np.zeros(3,dtype=int)
+    cellm = np.zeros(3,dtype=int)
 
 
 
@@ -566,36 +576,70 @@ class phi:
     for nq in range(qnum):
       q = qpoint_mat[nq,:]
       qcart = np.dot(q, B)
+
+#      print "q" , q, qcart
       
       for nz in range(nonzero.shape[0]):
         atoms[:] = nonzero[nz,0:2]
   #      ijk[:] =   nonzero[nz,2:4]
         ssx[:] =   nonzero[nz,2:2+3]
         cell[:] = ssx
-        cell[0] = cell[0] % self.supercell[0]
-        cell[1] = cell[1] % self.supercell[1]
-        cell[2] = cell[2] % self.supercell[2]
+#        cell[0] = cell[0] % self.supercell[0]
+#        cell[1] = cell[1] % self.supercell[1]
+#        cell[2] = cell[2] % self.supercell[2]
+
+        cellm[0] = cell[0] % self.supercell[0]
+        cellm[1] = cell[1] % self.supercell[1]
+        cellm[2] = cell[2] % self.supercell[2]
+
         na=atoms[1]
         nb=atoms[0]
+
+#        na=atoms[0]
+#        nb=atoms[1]
         sa=0
-        sb=self.supercell_index_f(cell)
-        nsym = float(len(self.moddict_prim[na*self.nat*self.ncells**2 + sa*self.ncells*self.nat + nb*self.ncells + sb]))
-        for m_count,m in enumerate(self.moddict_prim[na*self.nat*self.ncells**2 + sa*self.ncells*self.nat + nb*self.ncells + sb]):
-
-          cellR = np.dot(m, self.Acell_super)
+        sb=self.supercell_index_f(cellm)
+        #        nsym = float(len(self.moddict_prim[na*self.nat*self.ncells**2 + sa*self.ncells*self.nat + nb*self.ncells + sb]))
+        #        for m_count,m in enumerate(self.moddict_prim[na*self.nat*self.ncells**2 + sa*self.ncells*self.nat + nb*self.ncells + sb]):
 
 
-          cart = us0[na,0,:]
-          cartR = us0[nb,sb,:] - cellR
+        #          cellR = m * self.supercell
+        #          cellR = cellR + cell
+        #          cellR[0] = % self.supercell[0]
+        #          cellR = np.dot(cellR, , self.Acell)
+        #          cellR = np.dot(m, self.Acell)
 
-          dcart = cart[:] - cartR[:]
+        #          cart = us0[na,0,:]
+        #          cartR = us0[nb,sb,:] - cellR
+        #          cart = us0[na,0,:]
+        #          cartR = us0[nb,0,:] - cellR
+        #          dcart = cart[:] - cartR[:]
+        cellR = np.dot(cell, self.Acell)
+        cartR = -1.0*cellR
+        dcart =  -1.0*cartR[:]
 
-          print qcart, dcart, 'd',np.sum(dcart**2)**0.5, np.cos(np.dot(qcart, dcart))
+        #
+        #          print qcart, dcart, 'd',np.sum(dcart**2)**0.5, np.cos(np.dot(qcart, dcart))
           
-          J_q[nq, na, nb ] += phi[nz]/nsym * np.cos(np.dot(qcart, dcart)) / spin_mag[na] / spin_mag[nb]
+        J_q[nq, na, nb ] += phi[nz] * np.exp(1.0j*np.dot(qcart, dcart)) / spin_mag[na] / spin_mag[nb]
 
-          if nq == 0:
-            J_0[na, nb ] += phi[nz]/nsym / spin_mag[na] / spin_mag[nb]
+
+#        print "nq0 ", na, nb, phi[nz], "cellR", cellR, "exp", np.exp(1.0j*np.dot(qcart, dcart)), qcart, dcart, "cell", cell
+#        print "tot ", phi[nz] * np.exp(1.0j*np.dot(qcart, dcart)) / spin_mag[na] / spin_mag[nb]
+
+          
+        if nq == 0:
+          J_0[na, nb ] += phi[nz] / spin_mag[na] / spin_mag[nb]
+
+          #cellR = np.dot(m, self.Acell)
+          #cart = us0[na,0,:]
+          #cartR = us0[nb,sb,:] - cellR
+          #dcart_old = cart[:] - cartR[:]
+          #dcart = cellR
+          #J_q[nq, na, nb ] += phi[nz]/nsym * np.cos(np.dot(qcart, dcart)) / spin_mag[na] / spin_mag[nb]
+          #
+          #if nq == 0:
+          #J_0[na, nb ] += phi[nz]/nsym / spin_mag[na] / spin_mag[nb]
             
 
 
@@ -607,9 +651,15 @@ class phi:
         
               
       if nq == 0:
+
+#        print "J_q ", q, qcart
+#        print J_q[0,:,:]
+#        print
+        
         for na in range(self.nat):
           for nb in range(self.nat):
-            M_0[na,na] += J_0[na,nb] * spin_mag[nb] * A[nb]
+#            M_0[na,na] += J_0[na,nb] * spin_mag[nb] * A[nb]
+            M_0[na,na] += J_0[na,nb]  * A[nb]
         if self.magnetic_anisotropy != -999:
           for c1, na1 in enumerate(active):
             M_0[na1, na1 ] += self.magnetic_anisotropy / spin_mag[na1]**2 * A[na1] * 2.0
@@ -618,7 +668,8 @@ class phi:
       for na in range(self.nat):
         for nb in range(self.nat):
             
-          M_q[nq, na,nb] = M_0[na,nb] - J_q[nq,na,nb] * spin_mag[nb] * A[na]
+#          M_q[nq, na,nb] = M_0[na,nb] - J_q[nq,na,nb] * spin_mag[nb] * A[na]
+          M_q[nq, na,nb] = M_0[na,nb] - J_q[nq,na,nb]  * A[na]
 
       for c1, na1 in enumerate(active): #limit to magnetic elements only
         for c2, na2 in enumerate(active):
@@ -626,16 +677,16 @@ class phi:
 
       vals,vects = np.linalg.eig(M_active)
 
-      if sum(abs(q)) < 1e-5:
-        print "q ", q
-        print "M_active"
-        print M_active
-        print "self.magnetic_anisotropy ", self.magnetic_anisotropy, " ",  self.magnetic_anisotropy / spin_mag[na1]**2 *  2.0
-        print "A", A
+#      if sum(abs(q)) < 1e-5:
+#        print "q ", q
+#        print "M_active"
+#        print M_active
+#        print "self.magnetic_anisotropy ", self.magnetic_anisotropy, " ",  self.magnetic_anisotropy / spin_mag[na1]**2 *  2.0
+#        print "A", A
       
 
       omega[nq,:] = np.sort(np.abs(np.real(vals      )))
-      print "nq vals " , nq, np.sort(np.abs(np.real(vals      )))* 13.60569253 * 1000.0
+#      print "nq vals " , nq, np.sort(np.abs(np.real(vals      )))* 13.60569253 * 1000.0
 
 #    hartree_si = 4.35974394E-18
 #    hplank = 6.62606896E-34 
@@ -650,7 +701,7 @@ class phi:
 
 
     if units == 'meV':
-      meV  = omega * 13.60569253 * 1000.0
+      meV  = omega * 13.60569253 * 1000.0 * 2**0.5
     else:
       meV = omega
 
